@@ -42,10 +42,20 @@ Dragging a jumper end off the breadboard removes it, and dragging a part off the
 
 The rule checker intentionally uses fixed electrical rules rather than AI guidance. It merges breadboard strips and jumpers into nets, then looks for a pin 7 → resistor → LED → GND loop. It explains common mistakes: a backwards LED, a missing resistor (the LED burns out), the wrong pin, 5V instead of pin 7, short circuits, and parts that don't share a strip.
 
+## Tests
+
+```sh
+npm test
+```
+
+Unit tests in `src/lab/__tests__/` cover the engine (nets, series paths) and every Lab 01 verdict and guide step.
+
 ## App structure
 
 Expo Router serves the lesson at `src/app/index.tsx` for the web and Apple app. New lessons should become their own files in `src/app/`; reusable circuit simulations and UI components belong outside that directory.
 
-- `src/lab/` — breadboard and board geometry, the circuit checker, and the lab state reducer (no UI)
+- `src/lab/engine/` — the shared checker: turns strips and jumpers into nets (union-find) and searches for series paths; decides which mistake applies, in order
+- `src/lab/labs/` — one file per lab: its parts, goal loop, coach messages and guide steps, as data. Adding a lab means adding a file here, not new checking code
+- `src/lab/` — breadboard and board geometry, the adapter from workbench state to the checker, and the lab state reducer (no UI)
 - `src/components/workbench/` — SVG drawings of the Uno, breadboard and parts, plus drag-and-drop
 - `src/components/ide/` — the IDE-style toolbar, tabs, guide panel, sketch view and Output console

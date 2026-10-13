@@ -1,4 +1,4 @@
-import { type CircuitState, analyzeCircuit } from './circuit';
+import { type CircuitState, LAB, analyzeCircuit } from './circuit';
 import { type Hole, PART_NAME, PIN_BY_ID, type PartId, holeName, leadHoles } from './geometry';
 
 export type LogKind = 'muted' | 'info' | 'success' | 'warn' | 'error';
@@ -75,7 +75,7 @@ function applyPhysics(state: LabState): LabState {
   if (state.ledBurnt || !state.parts.led) return state;
   const { verdict } = analyzeCircuit(state);
   if (verdict.code !== 'noResistor') return state;
-  const powered = verdict.source !== 'D7' || (state.running && state.pinHigh);
+  const powered = verdict.source !== LAB.signal.node || (state.running && state.pinHigh);
   if (!powered) return state;
   return append(
     { ...state, ledBurnt: true },
