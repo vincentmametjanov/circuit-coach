@@ -21,13 +21,26 @@ type ToolbarProps = {
   onVerify: () => void;
   onUpload: () => void;
   onReset: () => void;
+  /** Leaves the lab for the homepage. */
+  onHome?: () => void;
 };
 
 /** Teal toolbar with round Verify / Upload buttons, like the Arduino IDE. */
-export function Toolbar({ busy, compact, running, onVerify, onUpload, onReset }: ToolbarProps) {
+export function Toolbar({ busy, compact, running, onVerify, onUpload, onReset, onHome }: ToolbarProps) {
   const [hover, setHover] = useState<string | null>(null);
   return (
     <View style={styles.toolbar}>
+      {onHome ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Circuit Coach home"
+          onPress={onHome}
+          style={({ pressed, hovered }) => [styles.resetButton, (pressed || hovered) && styles.resetButtonActive]}
+        >
+          <Icon name="home" size={18} color={colors.tealPale} />
+          {!compact ? <Text style={styles.resetText}>Home</Text> : null}
+        </Pressable>
+      ) : null}
       <RoundButton icon="verify" label="Verify" disabled={busy} onPress={onVerify} onHover={setHover} />
       <RoundButton icon="upload" label="Upload" disabled={busy} onPress={onUpload} onHover={setHover} />
       {!compact ? <Text style={styles.hoverLabel}>{hover ?? ''}</Text> : null}

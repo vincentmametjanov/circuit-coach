@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -97,6 +98,7 @@ export function LabScreen() {
       onVerify={verify}
       onUpload={upload}
       onReset={reset}
+      onHome={() => router.navigate('/')}
     />
   );
 

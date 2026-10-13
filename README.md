@@ -52,7 +52,15 @@ Unit tests in `src/lab/__tests__/` cover the engine (nets, series paths) and eve
 
 ## App structure
 
-Expo Router serves the lesson at `src/app/index.tsx` for the web and Apple app. New lessons should become their own files in `src/app/`; reusable circuit simulations and UI components belong outside that directory.
+Expo Router pages, for the web and the Apple app:
+
+- `/` (`src/app/index.tsx`): homepage: what Circuit Coach is, why learn Arduino, how it connects to manufacturing and engineering
+- `/labs` (`src/app/labs/index.tsx`): all ten labs grouped by phase; labs not built yet show as "Coming soon"
+- `/labs/[id]` (`src/app/labs/[id].tsx`): opens a ready lab; others redirect to `/labs`
+
+The course outline lives in `src/lab/catalog.ts`; set `ready: true` when a lab ships. Page layout pieces (header, bands, grid, buttons) are in `src/components/site/`. Layouts switch at 640 px (phone to tablet) and 960 px (tablet to desktop).
+
+Reusable circuit simulations and UI components belong outside `src/app/`.
 
 - `src/lab/engine/` — the shared checker: turns strips and jumpers into nets (union-find) and searches for series paths; decides which mistake applies, in order
 - `src/lab/labs/` — one file per lab: its parts, goal loop, coach messages and guide steps, as data. Adding a lab means adding a file here, not new checking code

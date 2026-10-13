@@ -1,6 +1,6 @@
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-export type IconName = 'verify' | 'upload' | 'reset' | 'guide' | 'board' | 'file' | 'usb' | 'clear' | 'check';
+export type IconName = 'verify' | 'upload' | 'reset' | 'guide' | 'board' | 'file' | 'usb' | 'clear' | 'check' | 'home';
 
 type Props = { name: IconName; size?: number; color: string };
 
@@ -37,6 +37,7 @@ export function Icon({ name, size = 20, color }: Props) {
           <Circle cx={12} cy={19} r={2} fill={color} />
         </>
       ) : null}
+      {name === 'home' ? <Path d="M4 11l8-7 8 7M6.5 9.5V20h11V9.5M10 20v-5h4v5" {...stroke} strokeWidth={1.9} /> : null}
       {name === 'clear' ? <Path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13" {...stroke} strokeWidth={1.8} /> : null}
     </Svg>
   );

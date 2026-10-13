@@ -47,6 +47,11 @@ export function GuidePanel({ steps, scrollable = true }: { steps: LabStep[]; scr
         limit.
       </Explainer>
 
+      <Explainer title="On the factory floor">
+        Machines show their state with indicator lights. A factory controller switches an output on to light a
+        “running” lamp, the same job your sketch does when it sets pin 7 HIGH.
+      </Explainer>
+
       <View style={styles.nextCard}>
         <Text style={styles.nextLabel}>UP NEXT</Text>
         <Text style={styles.nextTitle}>Lab 02 · Button input and pull-up resistors</Text>

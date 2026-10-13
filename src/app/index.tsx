@@ -1,5 +1,5 @@
-import { LabScreen } from '../components/LabScreen';
+import { HomeScreen } from '../components/site/HomeScreen';
 
-export default function HomeScreen() {
-  return <LabScreen />;
+export default function Home() {
+  return <HomeScreen />;
 }
