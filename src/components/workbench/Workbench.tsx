@@ -1,49 +1,67 @@
 import { memo, useRef, useState } from 'react';
-import { type GestureResponderEvent, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
+import { type GestureResponderEvent, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, G, Pattern, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import {
   BB_SCALE,
+  BIN_JUMPER_BOX,
   BOARD_LEDS,
+  BOARD_SIZE,
   BREADBOARD,
   HOLE_PITCH,
   type CanvasLayout,
   type Hole,
-  PART_BOX,
-  PART_NAME,
-  PART_SPAN,
   PIN_BY_ID,
-  type PartId,
-  type Point,
+  binSlotsFor,
   headerRegions,
   holeKey,
   holeName,
   holePoint,
   insideBreadboard,
-  leadHoles,
   nearestHole,
   nearestPin,
-  partCenter,
   pinPoint,
   sameHole,
+  type Point,
 } from '../../lab/geometry';
-import type { LabAction, LabState } from '../../lab/state';
+import type { LabDef } from '../../lab/lab';
+import { PART_DEFS, partLegs, type PartSpec } from '../../lab/parts';
+import type { RuntimeAction, RuntimeState } from '../../lab/runtime';
+import type { ComponentId } from '../../lab/components';
 import { colors } from '../../theme';
 import { ArduinoUno } from './ArduinoUno';
 import { Breadboard, PartsBin } from './Breadboard';
-import { JumperWire, Led, type LedGlow, Resistor, Tag, wireColor } from './Parts';
+import {
+  BANDS_10K,
+  BinJumpers,
+  JumperWire,
+  LOOSE_WIRE,
+  Led,
+  type LedGlow,
+  LooseEnd,
+  Pot,
+  Pushbutton,
+  Resistor,
+  Tag,
+  wireColor,
+} from './Parts';
 
 type Props = {
   layout: CanvasLayout;
   scale: number;
-  lab: LabState;
-  ledGlow: LedGlow;
-  dispatch: (action: LabAction) => void;
+  lab: LabDef;
+  state: RuntimeState;
+  /** LED glow per instance id, computed from the behavior model. */
+  ledGlow: Record<string, LedGlow>;
+  dispatch: (action: RuntimeAction) => void;
   onDraggingChange?: (dragging: boolean) => void;
+  /** Called when the student taps a component to learn what it is. */
+  onInspect?: (id: ComponentId) => void;
 };
 
 type Drag =
-  | { kind: 'part'; part: PartId; origin: Point; at: Point }
+  | { kind: 'part'; part: string; origin: Point; at: Point }
+  | { kind: 'binWire'; origin: Point; at: Point }
   | { kind: 'newWire'; pin: string; origin: Point; at: Point }
   | { kind: 'wirePin'; wireId: string; origin: Point; at: Point }
   | { kind: 'wireHole'; wireId: string; origin: Point; at: Point };
@@ -52,33 +70,74 @@ const TAP_SLOP = 4;
 const OK = colors.teal;
 const BAD = colors.danger;
 
+const specOf = (lab: LabDef, id: string): PartSpec => lab.parts.find((p) => p.id === id)!;
+const defOf = (lab: LabDef, id: string) => PART_DEFS[specOf(lab, id).def];
+const displayName = (lab: LabDef, id: string) => specOf(lab, id).name ?? defOf(lab, id).name;
+
+/** Where a part's artwork is anchored: the midpoint of its outermost legs. */
+function anchorFor(layout: CanvasLayout, lab: LabDef, id: string, start: Hole): Point {
+  const legs = partLegs(specOf(lab, id).def, start);
+  const points = legs.map((hole) => holePoint(layout, hole));
+  const x = (Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
+  const y = (Math.min(...points.map((p) => p.y)) + Math.max(...points.map((p) => p.y))) / 2;
+  // Resistors and LEDs anchor on their row; the button centers over its legs.
+  return defOf(lab, id).pressable ? { x, y } : { x, y: points[0].y };
+}
+
 /** Which holes are in use, and by what, optionally ignoring the item being dragged. */
-function occupancy(lab: LabState, ignore: { part?: PartId; wireId?: string } = {}) {
+function occupancy(lab: LabDef, state: RuntimeState, ignore: { part?: string; wireId?: string } = {}) {
   const used = new Map<string, string>();
-  (['resistor', 'led'] as const).forEach((part) => {
-    const left = lab.parts[part];
-    if (!left || part === ignore.part) return;
-    leadHoles(part, left).forEach((hole) => used.set(holeKey(hole), `the ${PART_NAME[part]}`));
-  });
-  lab.wires.forEach((wire) => {
-    if (wire.id !== ignore.wireId) used.set(holeKey(wire.hole), `the ${PIN_BY_ID[wire.pin].name} jumper`);
+  for (const spec of lab.parts) {
+    const start = state.parts[spec.id];
+    if (!start || spec.id === ignore.part) continue;
+    for (const hole of partLegs(spec.def, start)) {
+      used.set(holeKey(hole), `the ${displayName(lab, spec.id)}`);
+    }
+  }
+  state.wires.forEach((wire) => {
+    if (wire.hole && wire.id !== ignore.wireId) {
+      used.set(holeKey(wire.hole), wire.pin ? `the ${PIN_BY_ID[wire.pin].name} jumper` : 'a jumper');
+    }
   });
   return used;
 }
 
-function partDrop(layout: CanvasLayout, lab: LabState, part: PartId, center: Point) {
-  const span = PART_SPAN[part];
-  const left = nearestHole(layout, { x: center.x - (span * HOLE_PITCH) / 2, y: center.y });
-  if (!left || left.col + span >= BREADBOARD.cols) return null;
-  const leads = leadHoles(part, left);
-  const used = occupancy(lab, { part });
-  const blockedBy = leads.map((hole) => used.get(holeKey(hole))).find(Boolean) ?? null;
-  return { left, leads, blockedBy };
+function partDrop(layout: CanvasLayout, lab: LabDef, state: RuntimeState, part: string, center: Point) {
+  const def = defOf(lab, part);
+  const legs = partLegs(specOf(lab, part).def, { row: 0, col: 0 });
+  const spanX = Math.max(...legs.map((l) => l.col)) * HOLE_PITCH;
+  const first = nearestHole(layout, { x: center.x - spanX / 2, y: center.y });
+  if (!first) return null;
+  const holes = partLegs(specOf(lab, part).def, first);
+  if (holes.some((h) => h.col >= BREADBOARD.cols)) return null;
+  const used = occupancy(lab, state, { part });
+  const blockedBy = holes.map((hole) => used.get(holeKey(hole))).find(Boolean) ?? null;
+  return { left: first, leads: holes, blockedBy, def };
 }
 
-export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingChange }: Props) {
+/** Where a jumper's unplugged end dangles: just off the end that is plugged in. */
+function loosePoint(layout: CanvasLayout, wire: RuntimeState['wires'][number]): Point {
+  const clamp = (y: number) => Math.max(8, Math.min(layout.height - 8, y));
+  if (wire.hole) {
+    const at = holePoint(layout, wire.hole);
+    return { x: at.x, y: clamp(at.y - 26) };
+  }
+  const pin = PIN_BY_ID[wire.pin!];
+  const at = pinPoint(layout, pin);
+  return { x: at.x, y: clamp(at.y + (pin.header === 'top' ? -28 : 20)) };
+}
+
+export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDraggingChange, onInspect }: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
-  const log = (kind: 'info' | 'warn', text: string) => dispatch({ type: 'log', kind, text });
+  const slots = binSlotsFor(layout, lab.parts.map((p) => p.id));
+  const mistake = (title: string, hint: string) => dispatch({ type: 'mistake', title, hint });
+  const holeTaken = (hole: Hole, usedBy: string) =>
+    mistake(
+      `Hole ${holeName(hole)} already holds ${usedBy}.`,
+      'Each hole holds one leg or wire. Any other hole in the same column connects the same way.',
+    );
+  const pinTaken = (name: string) =>
+    mistake(`${name} already has a jumper in it.`, 'Each Arduino pin holds one jumper. Pick another pin, or move that jumper first.');
 
   const startDrag = (next: Drag) => {
     setDrag(next);
@@ -93,27 +152,34 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
     onDraggingChange?.(false);
   };
 
-  const currentCenter = (part: PartId) => {
-    const left = lab.parts[part];
-    return left ? partCenter(layout, part, left) : layout.binSlots[part];
+  const currentAnchor = (part: string) => {
+    const start = state.parts[part];
+    return start ? anchorFor(layout, lab, part, start) : slots[part];
   };
 
   // ---- drop handlers -------------------------------------------------------
 
-  const dropPart = (part: PartId, at: Point, tapped: boolean) => {
+  const dropPart = (part: string, at: Point, tapped: boolean) => {
+    const def = defOf(lab, part);
     if (tapped) {
-      if (part === 'led') dispatch({ type: 'flipLed' });
+      if (def.flippable && state.parts[part]) dispatch({ type: 'flipPart', part });
+      else onInspect?.(def.id as ComponentId);
       return;
     }
-    const target = partDrop(layout, lab, part, at);
+    const target = partDrop(layout, lab, state, part, at);
     if (target && !target.blockedBy) {
-      const current = lab.parts[part];
+      const current = state.parts[part];
       if (!current || !sameHole(current, target.left)) dispatch({ type: 'placePart', part, hole: target.left });
     } else if (target?.blockedBy) {
-      log('warn', `That spot is taken by ${target.blockedBy}. Each hole holds one leg or wire.`);
+      mistake(`That spot is taken by ${target.blockedBy}.`, 'Each hole holds one leg or wire. Move the part to an empty spot.');
     } else if (insideBreadboard(layout, at)) {
-      log('warn', `Line the ${PART_NAME[part]}’s legs up with a row of holes (not the center gap).`);
-    } else if (lab.parts[part]) {
+      mistake(
+        `The ${displayName(lab, part)} didn’t line up with the holes.`,
+        def.pressable
+          ? 'Drop it so its four legs straddle the center gap, two legs on each side.'
+          : 'Drop it so both legs land in one lettered row, with room for both legs and away from the center gap.',
+      );
+    } else if (state.parts[part]) {
       dispatch({ type: 'placePart', part, hole: null });
     }
   };
@@ -121,38 +187,68 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
   const dropNewWire = (pinId: string, at: Point, tapped: boolean) => {
     const pin = PIN_BY_ID[pinId];
     if (tapped) {
-      log('info', `To wire ${pin.name}, drag from it to a hole on the breadboard.`);
+      onInspect?.('arduino');
       return;
     }
     const hole = nearestHole(layout, at);
     if (!hole) return;
-    const usedBy = occupancy(lab).get(holeKey(hole));
-    if (usedBy) log('warn', `Hole ${holeName(hole)} already holds ${usedBy}.`);
-    else dispatch({ type: 'addWire', pin: pinId, hole });
+    const usedBy = occupancy(lab, state).get(holeKey(hole));
+    if (usedBy) holeTaken(hole, usedBy);
+    else dispatch({ type: 'addWire', pin: pin.id, hole });
+  };
+
+  /** A jumper taken from the bin plugs one end in where it is dropped; the other end stays loose. */
+  const dropBinWire = (at: Point, tapped: boolean) => {
+    if (tapped) {
+      onInspect?.('jumper');
+      return;
+    }
+    const pin = nearestPin(layout, at, 9);
+    if (pin) {
+      if (state.wires.some((w) => w.pin === pin.id)) pinTaken(pin.name);
+      else dispatch({ type: 'addWire', pin: pin.id, hole: null });
+      return;
+    }
+    const hole = nearestHole(layout, at);
+    if (!hole) return;
+    const usedBy = occupancy(lab, state).get(holeKey(hole));
+    if (usedBy) holeTaken(hole, usedBy);
+    else dispatch({ type: 'addWire', pin: null, hole });
   };
 
   const dropWirePin = (wireId: string, at: Point, tapped: boolean) => {
-    const wire = lab.wires.find((w) => w.id === wireId);
+    const wire = state.wires.find((w) => w.id === wireId);
     if (!wire || tapped) return;
     const pin = nearestPin(layout, at, 9);
     if (!pin) {
-      dispatch({ type: 'removeWire', id: wireId });
+      if (wire.pin) dispatch({ type: 'removeWire', id: wireId });
+      else if (nearestHole(layout, at)) {
+        mistake(
+          'This jumper already has one end in the breadboard.',
+          'Every jumper runs from an Arduino pin to the breadboard. Drag the loose end onto a pin.',
+        );
+      }
     } else if (pin.id !== wire.pin) {
-      const taken = lab.wires.find((w) => w.pin === pin.id);
-      if (taken) log('warn', `${pin.name} already has a jumper in it.`);
+      if (state.wires.some((w) => w.pin === pin.id && w.id !== wireId)) pinTaken(pin.name);
       else dispatch({ type: 'moveWire', id: wireId, pin: pin.id });
     }
   };
 
   const dropWireHole = (wireId: string, at: Point, tapped: boolean) => {
-    const wire = lab.wires.find((w) => w.id === wireId);
+    const wire = state.wires.find((w) => w.id === wireId);
     if (!wire || tapped) return;
     const hole = nearestHole(layout, at);
     if (!hole) {
-      dispatch({ type: 'removeWire', id: wireId });
-    } else if (!sameHole(hole, wire.hole)) {
-      const usedBy = occupancy(lab, { wireId }).get(holeKey(hole));
-      if (usedBy) log('warn', `Hole ${holeName(hole)} already holds ${usedBy}.`);
+      if (wire.hole) dispatch({ type: 'removeWire', id: wireId });
+      else if (nearestPin(layout, at, 9)) {
+        mistake(
+          'This jumper already has one end in an Arduino pin.',
+          'Every jumper runs from an Arduino pin to the breadboard. Drag the loose end into a breadboard hole.',
+        );
+      }
+    } else if (!wire.hole || !sameHole(hole, wire.hole)) {
+      const usedBy = occupancy(lab, state, { wireId }).get(holeKey(hole));
+      if (usedBy) holeTaken(hole, usedBy);
       else dispatch({ type: 'moveWire', id: wireId, hole });
     }
   };
@@ -164,6 +260,7 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
     const tapped = Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP;
     const at = { x: current.origin.x + dx / scale, y: current.origin.y + dy / scale };
     if (current.kind === 'part') dropPart(current.part, at, tapped);
+    else if (current.kind === 'binWire') dropBinWire(at, tapped);
     else if (current.kind === 'newWire') dropNewWire(current.pin, at, tapped);
     else if (current.kind === 'wirePin') dropWirePin(current.wireId, at, tapped);
     else dropWireHole(current.wireId, at, tapped);
@@ -180,20 +277,22 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
     height: h * scale,
   });
 
-  const parts = (['resistor', 'led'] as const).map((part) => {
-    const dragging = drag?.kind === 'part' && drag.part === part;
-    return { part, center: dragging ? drag.at : currentCenter(part), dragging, home: currentCenter(part) };
+  const parts = lab.parts.map((spec) => {
+    const dragging = drag?.kind === 'part' && drag.part === spec.id;
+    return { spec, center: dragging ? drag.at : currentAnchor(spec.id), dragging, home: currentAnchor(spec.id) };
   });
 
-  const wires = lab.wires.map((wire) => {
-    const pin = PIN_BY_ID[wire.pin];
+  const wires = state.wires.map((wire) => {
+    const pin = wire.pin ? PIN_BY_ID[wire.pin] : null;
     const movingPin = drag?.kind === 'wirePin' && drag.wireId === wire.id;
     const movingHole = drag?.kind === 'wireHole' && drag.wireId === wire.id;
+    const loose = pin && wire.hole ? null : loosePoint(layout, wire);
     return {
       wire,
-      color: wireColor(pin),
-      from: movingPin ? drag.at : pinPoint(layout, pin),
-      to: movingHole ? drag.at : holePoint(layout, wire.hole),
+      color: pin ? wireColor(pin) : LOOSE_WIRE,
+      from: movingPin ? drag.at : pin ? pinPoint(layout, pin) : loose!,
+      to: movingHole ? drag.at : wire.hole ? holePoint(layout, wire.hole) : loose!,
+      loose: movingPin || movingHole ? null : loose,
       moving: movingPin || movingHole,
     };
   });
@@ -202,7 +301,7 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
     x: layout.board.x + BOARD_LEDS[id].x,
     y: layout.board.y + BOARD_LEDS[id].y,
   });
-  const uploading = lab.busy === 'uploading';
+  const uploading = state.busy === 'uploading';
 
   return (
     <View style={[styles.canvas, { width, height }, webNoSelect]}>
@@ -216,13 +315,23 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
             <Stop offset="0.35" stopColor="#FF5A3D" stopOpacity={0.55} />
             <Stop offset="1" stopColor="#FF3B2F" stopOpacity={0} />
           </RadialGradient>
+          <RadialGradient id="ledGlowGreen" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#D5F5E3" stopOpacity={0.95} />
+            <Stop offset="0.35" stopColor="#3BE36B" stopOpacity={0.55} />
+            <Stop offset="1" stopColor="#2ECC71" stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="ledGlowYellow" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor="#FCF3CF" stopOpacity={0.95} />
+            <Stop offset="0.35" stopColor="#F4D03F" stopOpacity={0.55} />
+            <Stop offset="1" stopColor="#F1C40F" stopOpacity={0} />
+          </RadialGradient>
           <RadialGradient id="smdGlow" cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.9} />
             <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
           </RadialGradient>
         </Defs>
 
-        <StaticScene layout={layout} />
+        <StaticScene layout={layout} lab={lab} slots={slots} />
 
         {/* Board status LEDs */}
         <BoardLight at={boardLed('on')} color="#3BE36B" />
@@ -230,24 +339,23 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
         {uploading ? <BoardLight at={boardLed('rx')} color="#FFD34D" /> : null}
         {uploading ? <BoardLight at={boardLed('l')} color="#FFD34D" /> : null}
 
-        <DropPreview drag={drag} layout={layout} lab={lab} />
+        <DropPreview drag={drag} layout={layout} lab={lab} state={state} />
 
         {/* Wires first so the parts they run past stay readable. */}
         {wires
           .filter((w) => !w.moving)
-          .map(({ wire, color, from, to }) => (
-            <JumperWire key={wire.id} from={from} to={to} color={color} />
+          .map(({ wire, color, from, to, loose }) => (
+            <G key={wire.id}>
+              <JumperWire from={from} to={to} color={color} />
+              {loose ? <LooseEnd at={loose} /> : null}
+            </G>
           ))}
 
         {parts
           .filter((p) => !p.dragging)
-          .map(({ part, center }) =>
-            part === 'resistor' ? (
-              <Resistor key={part} at={center} />
-            ) : (
-              <Led key={part} at={center} flipped={lab.ledFlipped} glow={lab.parts.led ? ledGlow : 'off'} burnt={lab.ledBurnt} />
-            ),
-          )}
+          .map(({ spec, center }) => (
+            <PartView key={spec.id} spec={spec} at={center} state={state} glow={ledGlow[spec.id] ?? 'off'} />
+          ))}
 
         {wires
           .filter((w) => w.moving)
@@ -255,35 +363,63 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
             <JumperWire key={wire.id} from={from} to={to} color={color} faded />
           ))}
 
+        {drag?.kind === 'binWire' ? (
+          <JumperWire from={{ x: drag.at.x - 12, y: drag.at.y + 16 }} to={drag.at} color={LOOSE_WIRE} faded />
+        ) : null}
+
         {drag?.kind === 'newWire' ? (
           <JumperWire from={pinPoint(layout, PIN_BY_ID[drag.pin])} to={drag.at} color={wireColor(PIN_BY_ID[drag.pin])} faded />
         ) : null}
 
         {parts
           .filter((p) => p.dragging)
-          .map(({ part, center }) =>
-            part === 'resistor' ? (
-              <Resistor key={part} at={center} lifted />
-            ) : (
-              <Led key={part} at={center} flipped={lab.ledFlipped} glow="off" burnt={lab.ledBurnt} lifted />
-            ),
-          )}
+          .map(({ spec, center }) => (
+            <PartView key={spec.id} spec={spec} at={center} state={state} glow="off" lifted />
+          ))}
 
-        <DragTag drag={drag} layout={layout} lab={lab} />
+        <DragTag drag={drag} layout={layout} lab={lab} state={state} />
       </Svg>
 
+      {/* Tap the board or the breadboard to learn what it is. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Arduino Uno: tap to learn what it is"
+        onPress={() => onInspect?.('arduino')}
+        style={[styles.handle, frame(layout.board.x, layout.board.y, BOARD_SIZE.width, BOARD_SIZE.height)]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Breadboard: tap to learn what it is"
+        onPress={() => onInspect?.('breadboard')}
+        style={[
+          styles.handle,
+          frame(layout.breadboard.x, layout.breadboard.y, BREADBOARD.width * BB_SCALE, BREADBOARD.height * BB_SCALE),
+        ]}
+      />
+
       {/* Touch targets, drawn above the artwork. */}
+      <DragHandle
+        label="Jumper wires: drag one to a pin or hole, tap to learn what it is"
+        style={frame(
+          layout.binJumper.x + BIN_JUMPER_BOX.left,
+          layout.binJumper.y + BIN_JUMPER_BOX.top,
+          BIN_JUMPER_BOX.right - BIN_JUMPER_BOX.left,
+          BIN_JUMPER_BOX.bottom - BIN_JUMPER_BOX.top,
+        )}
+        onStart={() => startDrag({ kind: 'binWire', origin: layout.binJumper, at: layout.binJumper })}
+        onMove={moveDrag}
+        onEnd={finish}
+      />
       {headerRegions(layout).map((region) => (
         <DragHandle
           key={region.header}
           label={`Arduino ${region.header} header pins`}
           style={frame(region.x, region.y, region.width, region.height)}
           onStart={(local) => {
-            // Pick the pin by horizontal position so the whole strip is easy to grab.
             const pin = nearestPin(layout, { x: region.x + local.x / scale, y: region.pinY }, 8, region.header);
             if (!pin) return;
             const origin = pinPoint(layout, pin);
-            const wire = lab.wires.find((w) => w.pin === pin.id);
+            const wire = state.wires.find((w) => w.pin === pin.id);
             startDrag(
               wire
                 ? { kind: 'wirePin', wireId: wire.id, origin, at: origin }
@@ -295,28 +431,66 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
         />
       ))}
 
-      {parts.map(({ part, home }) => {
-        const box = PART_BOX[part];
+      {parts.map(({ spec, home }) => {
+        const def = PART_DEFS[spec.def];
+        const box = def.box;
+        const name = displayName(lab, spec.id);
+        const placed = state.parts[spec.id] != null;
+        const pressable = !!def.pressable && placed && state.running;
+        const knob = spec.def === 'pot' && placed;
+        const label = pressable
+          ? `${name}: press and hold to close the contact`
+          : knob
+            ? `${name}: drag left or right to turn the knob`
+            : def.flippable
+              ? `${name}: drag to place, tap to learn or flip`
+              : `${name}: drag to place, tap to learn what it is`;
         return (
           <DragHandle
-            key={part}
-            label={part === 'led' ? 'LED: drag to place, tap to flip' : 'Resistor: drag to place'}
+            key={spec.id}
+            label={label}
             style={frame(home.x + box.left, home.y + box.top, box.right - box.left, box.bottom - box.top)}
-            onStart={() => startDrag({ kind: 'part', part, origin: home, at: home })}
-            onMove={moveDrag}
-            onEnd={finish}
+            onStart={() => {
+              if (pressable) {
+                dispatch({ type: 'pressPart', part: spec.id, pressed: true });
+                return;
+              }
+              startDrag({ kind: 'part', part: spec.id, origin: home, at: home });
+            }}
+            onMove={(dx, dy) => {
+              if (knob && state.running) {
+                const current = typeof state.behavior.knob === 'number' ? state.behavior.knob : 0.5;
+                const value = Math.max(0, Math.min(1, current + dx / (scale * 120)));
+                dispatch({ type: 'control', id: 'knob', value });
+                return;
+              }
+              moveDrag(dx, dy);
+            }}
+            onEnd={(dx, dy, cancelled) => {
+              if (pressable) {
+                dispatch({ type: 'pressPart', part: spec.id, pressed: false });
+                return;
+              }
+              if (knob && state.running && Math.abs(dy) < TAP_SLOP * 6) return; // knob turn, not a move
+              finish(dx, dy, cancelled);
+            }}
           />
         );
       })}
 
-      {lab.wires.map((wire) => {
-        const end = holePoint(layout, wire.hole);
+      {state.wires.map((wire) => {
+        const kind = wire.pin === null ? ('wirePin' as const) : ('wireHole' as const);
+        const end = wire.pin && wire.hole ? holePoint(layout, wire.hole) : loosePoint(layout, wire);
+        const label =
+          wire.pin && wire.hole
+            ? `${PIN_BY_ID[wire.pin].name} jumper end in ${holeName(wire.hole)}`
+            : 'Loose jumper end: drag it to plug it in';
         return (
           <DragHandle
             key={wire.id}
-            label={`${PIN_BY_ID[wire.pin].name} jumper end in ${holeName(wire.hole)}`}
+            label={label}
             style={frame(end.x - 9, end.y - 9, 18, 18)}
-            onStart={() => startDrag({ kind: 'wireHole', wireId: wire.id, origin: end, at: end })}
+            onStart={() => startDrag({ kind, wireId: wire.id, origin: end, at: end })}
             onMove={moveDrag}
             onEnd={finish}
           />
@@ -326,12 +500,52 @@ export function Workbench({ layout, scale, lab, ledGlow, dispatch, onDraggingCha
   );
 }
 
-const StaticScene = memo(function StaticScene({ layout }: { layout: CanvasLayout }) {
+/** One placed or binned part, drawn from its definition. */
+function PartView({
+  spec,
+  at,
+  state,
+  glow,
+  lifted = false,
+}: {
+  spec: PartSpec;
+  at: Point;
+  state: RuntimeState;
+  glow: LedGlow;
+  lifted?: boolean;
+}) {
+  const flipped = state.flipped.includes(spec.id);
+  const burnt = state.burnt.includes(spec.id);
+  const pressed = state.pressed.includes(spec.id);
+  switch (spec.def) {
+    case 'resistor':
+      return <Resistor at={at} lifted={lifted} />;
+    case 'resistor10k':
+      return <Resistor at={at} lifted={lifted} bands={BANDS_10K} />;
+    case 'led':
+      return <Led at={at} flipped={flipped} glow={lifted ? 'off' : glow} burnt={burnt} lifted={lifted} color={(spec.color as 'red' | 'green' | 'yellow') ?? 'red'} />;
+    case 'button':
+      return <Pushbutton at={at} pressed={pressed} lifted={lifted} />;
+    case 'pot':
+      return <Pot at={at} value={typeof state.behavior.knob === 'number' ? state.behavior.knob : 0.5} lifted={lifted} />;
+  }
+}
+
+const StaticScene = memo(function StaticScene({
+  layout,
+  lab,
+  slots,
+}: {
+  layout: CanvasLayout;
+  lab: LabDef;
+  slots: Record<string, Point>;
+}) {
   return (
     <G>
       <Rect x={0} y={0} width={layout.width} height={layout.height} fill={colors.canvas} />
       <Rect x={0} y={0} width={layout.width} height={layout.height} fill="url(#mat)" />
-      <PartsBin layout={layout} />
+      <PartsBin layout={layout} lab={lab} slots={slots} />
+      <BinJumpers at={layout.binJumper} />
       <Breadboard origin={layout.breadboard} />
       <ArduinoUno origin={layout.board} />
     </G>
@@ -348,11 +562,22 @@ function BoardLight({ at, color }: { at: Point; color: string }) {
 }
 
 /** Highlights the strips and holes a dragged item would connect to. */
-function DropPreview({ drag, layout, lab }: { drag: Drag | null; layout: CanvasLayout; lab: LabState }) {
+function DropPreview({
+  drag,
+  layout,
+  lab,
+  state,
+}: {
+  drag: Drag | null;
+  layout: CanvasLayout;
+  lab: LabDef;
+  state: RuntimeState;
+}) {
   if (!drag) return null;
 
-  if (drag.kind === 'wirePin') {
-    const pin = nearestPin(layout, drag.at, 9);
+  const pinTarget = drag.kind === 'wirePin' || drag.kind === 'binWire' ? nearestPin(layout, drag.at, 9) : null;
+  if (drag.kind === 'wirePin' || pinTarget) {
+    const pin = pinTarget;
     if (!pin) return null;
     const at = pinPoint(layout, pin);
     return <Circle cx={at.x} cy={at.y} r={5.5} fill="none" stroke={OK} strokeWidth={1.6} />;
@@ -361,7 +586,7 @@ function DropPreview({ drag, layout, lab }: { drag: Drag | null; layout: CanvasL
   let holes: Hole[] = [];
   let ok = true;
   if (drag.kind === 'part') {
-    const target = partDrop(layout, lab, drag.part, drag.at);
+    const target = partDrop(layout, lab, state, drag.part, drag.at);
     if (!target) return null;
     holes = target.leads;
     ok = !target.blockedBy;
@@ -369,20 +594,20 @@ function DropPreview({ drag, layout, lab }: { drag: Drag | null; layout: CanvasL
     const hole = nearestHole(layout, drag.at);
     if (!hole) return null;
     holes = [hole];
-    ok = !occupancy(lab, { wireId: drag.kind === 'wireHole' ? drag.wireId : undefined }).has(holeKey(hole));
+    ok = !occupancy(lab, state, { wireId: drag.kind === 'wireHole' ? drag.wireId : undefined }).has(holeKey(hole));
   }
 
   const tone = ok ? OK : BAD;
   return (
     <G>
       {holes.map((hole) => {
-        const top = holePoint(layout, { row: hole.row < 5 ? 0 : 5, col: hole.col });
+        const topOf = holePoint(layout, { row: hole.row < 5 ? 0 : 5, col: hole.col });
         const at = holePoint(layout, hole);
         return (
           <G key={holeKey(hole)}>
             <Rect
-              x={top.x - 4.6 * BB_SCALE}
-              y={top.y - 4.6 * BB_SCALE}
+              x={topOf.x - 4.6 * BB_SCALE}
+              y={topOf.y - 4.6 * BB_SCALE}
               width={9.2 * BB_SCALE}
               height={49.2 * BB_SCALE}
               rx={4.6 * BB_SCALE}
@@ -401,35 +626,47 @@ function DropPreview({ drag, layout, lab }: { drag: Drag | null; layout: CanvasL
 }
 
 /** Floating label that names what the drag will connect. */
-function DragTag({ drag, layout, lab }: { drag: Drag | null; layout: CanvasLayout; lab: LabState }) {
+function DragTag({ drag, layout, lab, state }: { drag: Drag | null; layout: CanvasLayout; lab: LabDef; state: RuntimeState }) {
   if (!drag) return null;
   const above = { x: drag.at.x, y: drag.at.y - (drag.kind === 'part' ? 44 : 18) };
 
   if (drag.kind === 'part') {
-    const target = partDrop(layout, lab, drag.part, drag.at);
-    if (!target) return <Tag at={above} text={insideBreadboard(layout, drag.at) ? 'line up with a row' : 'back to bin'} tone="#7F8C8D" />;
-    const [a, b] = target.leads;
+    const target = partDrop(layout, lab, state, drag.part, drag.at);
+    if (!target)
+      return <Tag at={above} text={insideBreadboard(layout, drag.at) ? 'line up with the holes' : 'back to bin'} tone="#7F8C8D" />;
     const tone = target.blockedBy ? BAD : OK;
-    if (drag.part === 'led') {
-      const [anode, cathode] = lab.ledFlipped ? [b, a] : [a, b];
+    const [a, b] = [target.leads[0], target.leads[target.leads.length - 1]];
+    const spec = specOf(lab, drag.part);
+    if (PART_DEFS[spec.def].polarized) {
+      const [anode, cathode] = state.flipped.includes(drag.part) ? [b, a] : [a, b];
       return <Tag at={above} text={`+ ${holeName(anode)} · − ${holeName(cathode)}`} tone={tone} />;
     }
     return <Tag at={above} text={`${holeName(a)} – ${holeName(b)}`} tone={tone} />;
   }
 
-  if (drag.kind === 'wirePin') {
+  if (drag.kind === 'binWire') {
     const pin = nearestPin(layout, drag.at, 9);
-    return <Tag at={above} text={pin ? pin.name : 'release to remove'} tone={pin ? OK : BAD} />;
+    const hole = pin ? null : nearestHole(layout, drag.at);
+    const text = pin ? pin.name : hole ? holeName(hole) : 'jumper wire';
+    return <Tag at={above} text={text} tone={pin || hole ? OK : '#7F8C8D'} />;
   }
 
-  const wire = drag.kind === 'wireHole' ? lab.wires.find((w) => w.id === drag.wireId) : null;
+  const wire = drag.kind === 'newWire' ? null : state.wires.find((w) => w.id === drag.wireId);
+
+  if (drag.kind === 'wirePin') {
+    const pin = nearestPin(layout, drag.at, 9);
+    if (pin) return <Tag at={above} text={pin.name} tone={OK} />;
+    return wire?.pin ? <Tag at={above} text="release to remove" tone={BAD} /> : <Tag at={above} text="pick a pin" tone="#7F8C8D" />;
+  }
+
   const pinId = drag.kind === 'newWire' ? drag.pin : wire?.pin;
   const pinName = pinId ? PIN_BY_ID[pinId].name : '';
   const hole = nearestHole(layout, drag.at);
   if (!hole) {
-    return <Tag at={above} text={drag.kind === 'wireHole' ? 'release to remove' : pinName} tone={drag.kind === 'wireHole' ? BAD : '#7F8C8D'} />;
+    if (drag.kind === 'wireHole' && wire?.hole) return <Tag at={above} text="release to remove" tone={BAD} />;
+    return <Tag at={above} text={drag.kind === 'wireHole' ? 'pick a hole' : pinName} tone="#7F8C8D" />;
   }
-  return <Tag at={above} text={`${pinName} → ${holeName(hole)}`} tone={OK} />;
+  return <Tag at={above} text={pinName ? `${pinName} → ${holeName(hole)}` : holeName(hole)} tone={OK} />;
 }
 
 // ---- gesture plumbing ----------------------------------------------------------

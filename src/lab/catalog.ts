@@ -37,7 +37,7 @@ export const LABS: LabSummary[] = [
     part: 'Pushbutton',
     factory: 'Start/stop buttons and limit switches',
     phase: 'Outputs and inputs',
-    ready: false,
+    ready: true,
   },
   {
     id: 'lab03',
@@ -47,7 +47,7 @@ export const LABS: LabSummary[] = [
     part: 'Three LEDs',
     factory: 'Andon stack lights that show a line’s status',
     phase: 'Outputs and inputs',
-    ready: false,
+    ready: true,
   },
   {
     id: 'lab04',
@@ -57,7 +57,7 @@ export const LABS: LabSummary[] = [
     part: 'Potentiometer',
     factory: 'Conveyor speed knobs',
     phase: 'Analog signals and sensors',
-    ready: false,
+    ready: true,
   },
   {
     id: 'lab05',

@@ -4,48 +4,60 @@ import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { analyzeCircuit, labSteps } from '../lab/circuit';
+import type { ComponentId } from '../lab/components';
 import { fitCanvas } from '../lab/geometry';
-import { SKETCH_NAME, createLab, labReducer } from '../lab/state';
+import type { LabDef } from '../lab/lab';
+import {
+  type RuntimeAction,
+  type RuntimeState,
+  createLabStore,
+  judge,
+  runtimeReducer,
+  runtimeSteps,
+} from '../lab/runtime';
 import { colors } from '../theme';
 import { ActivityBar, StatusBar, TabStrip, TitleBar, Toolbar } from './ide/Chrome';
 import { CodeView } from './ide/CodeView';
+import { ComponentCard } from './ide/ComponentCard';
 import { GuidePanel, NextStepBanner } from './ide/GuidePanel';
 import { OutputPanel } from './ide/OutputPanel';
+import { SerialPanel } from './ide/SerialPanel';
 import type { LedGlow } from './workbench/Parts';
 import { Workbench } from './workbench/Workbench';
 
-type TabId = 'bench' | 'code' | 'guide';
-
-const BENCH_TAB = { id: 'bench', label: 'Breadboard' };
-const CODE_TAB = { id: 'code', label: `${SKETCH_NAME}.ino` };
-const GUIDE_TAB = { id: 'guide', label: 'Guide' };
+type TabId = 'bench' | 'code' | 'guide' | 'serial';
 
 const COMPILE_MS = 700;
 const UPLOAD_MS = 1000;
-const BLINK_MS = 500;
 
-export function LabScreen() {
+/** The lab screen drives any lab defined in src/lab/labs/ through the runtime. */
+export function LabScreen({ lab }: { lab: LabDef }) {
   const { width: windowWidth } = useWindowDimensions();
   const wide = windowWidth >= 900;
 
-  const [lab, dispatch] = useReducer(labReducer, undefined, createLab);
+  const [state, dispatch] = useReducer(
+    (s: RuntimeState, a: RuntimeAction) => runtimeReducer(lab, s, a),
+    lab,
+    (l) => createLabStore(l).state,
+  );
   const [tab, setTab] = useState<TabId>('bench');
   const [guideOpen, setGuideOpen] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [area, setArea] = useState<{ width: number; height: number } | null>(null);
+  const [inspected, setInspected] = useState<ComponentId | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const analysis = useMemo(() => analyzeCircuit(lab), [lab]);
-  const steps = labSteps(analysis, lab.running);
+  const verdict = useMemo(() => judge(lab, state), [lab, state]);
+  const steps = runtimeSteps(lab, state, state.running);
   const stepsDone = steps.filter((step) => step.done).length;
 
-  // The uploaded sketch: toggle pin 7 every 500 ms.
+  // The behavior model's clock, while the sketch runs.
+  const tickMs = lab.behavior.tickMs;
   useEffect(() => {
-    if (!lab.running) return;
-    const id = setInterval(() => dispatch({ type: 'tick' }), BLINK_MS);
+    if (!state.running || !tickMs) return;
+    const id = setInterval(() => dispatch({ type: 'tick' }), tickMs);
     return () => clearInterval(id);
-  }, [lab.running]);
+  }, [state.running, tickMs]);
 
   useEffect(() => {
     const pending = timers.current;
@@ -57,13 +69,13 @@ export function LabScreen() {
   };
 
   const verify = () => {
-    if (lab.busy !== 'idle') return;
+    if (state.busy !== 'idle') return;
     dispatch({ type: 'compile' });
     later(COMPILE_MS, () => dispatch({ type: 'verifyDone' }));
   };
 
   const upload = () => {
-    if (lab.busy !== 'idle') return;
+    if (state.busy !== 'idle') return;
     dispatch({ type: 'compile' });
     later(COMPILE_MS, () => dispatch({ type: 'uploadStart' }));
     later(COMPILE_MS + UPLOAD_MS, () => dispatch({ type: 'uploadDone' }));
@@ -74,33 +86,51 @@ export function LabScreen() {
     dispatch({ type: 'reset' });
   };
 
-  const { verdict } = analysis;
-  let ledGlow: LedGlow = 'off';
-  if (!lab.ledBurnt && verdict.code === 'pass' && lab.running && lab.pinHigh) ledGlow = 'on';
-  if (!lab.ledBurnt && verdict.code === 'alwaysOn') ledGlow = verdict.source === '3V3' ? 'dim' : 'on';
+  // LED glow per instance, from the verdict and the behavior model.
+  const ledGlow = useMemo(() => {
+    const glow: Record<string, LedGlow> = {};
+    for (const spec of lab.parts) {
+      if (spec.def !== 'led') continue;
+      const burnt = state.burnt.includes(spec.id);
+      let level: LedGlow = 'off';
+      if (!burnt && verdict.code === 'pass' && state.running && state.behavior.pinHigh === true) level = 'on';
+      if (!burnt && state.behavior.ledOn === true) level = 'on';
+      if (!burnt && Array.isArray(state.behavior.lit) && (state.behavior.lit as string[]).includes(spec.id)) level = 'on';
+      if (!burnt && verdict.code === 'alwaysOn') level = verdict.source === '3V3' ? 'dim' : 'on';
+      glow[spec.id] = level;
+    }
+    return glow;
+  }, [lab, state, verdict]);
 
+  const sketch = lab.sketch.name;
   const status =
-    lab.busy === 'compiling'
+    state.busy === 'compiling'
       ? 'Compiling…'
-      : lab.busy === 'uploading'
+      : state.busy === 'uploading'
         ? 'Uploading…'
-        : lab.running
-          ? `Running ${SKETCH_NAME}`
+        : state.running
+          ? `Running ${sketch}`
           : 'No sketch uploaded';
-  const statusLeft = `Lab 01 · ${stepsDone}/${steps.length} steps`;
+  const statusLeft = `${lab.title.split('·')[0].trim()} · ${stepsDone}/${steps.length} steps`;
   const statusRight = `${status}   ·   Arduino Uno on sim-usb0`;
 
   const toolbar = (
     <Toolbar
-      busy={lab.busy !== 'idle'}
+      busy={state.busy !== 'idle'}
       compact={!wide}
-      running={lab.running}
+      running={state.running}
       onVerify={verify}
       onUpload={upload}
       onReset={reset}
-      onHome={() => router.navigate('/')}
+      onHome={() => router.navigate('/labs')}
     />
   );
+
+  const BENCH_TAB = { id: 'bench', label: 'Breadboard' };
+  const CODE_TAB = { id: 'code', label: `${sketch}.ino` };
+  const GUIDE_TAB = { id: 'guide', label: 'Guide' };
+  const SERIAL_TAB = { id: 'serial', label: 'Serial' };
+  const hasSerial = !!lab.behavior.analogReads || state.serial.length > 0;
 
   const renderBench = (width: number, height: number | null) => {
     const { layout, scale } = fitCanvas(width, height);
@@ -109,9 +139,11 @@ export function LabScreen() {
         layout={layout}
         scale={scale}
         lab={lab}
+        state={state}
         ledGlow={ledGlow}
         dispatch={dispatch}
         onDraggingChange={setDragging}
+        onInspect={setInspected}
       />
     );
   };
@@ -125,7 +157,7 @@ export function LabScreen() {
     return (
       <SafeAreaView style={styles.root}>
         <ExpoStatusBar style="light" />
-        <TitleBar title={`${SKETCH_NAME} | Circuit Coach`} />
+        <TitleBar title={`${sketch} | Circuit Coach`} />
         {toolbar}
         <View style={styles.body}>
           <ActivityBar
@@ -137,21 +169,32 @@ export function LabScreen() {
             active={[guideOpen ? 'guide' : '', mainTab]}
             onSelect={selectActivity}
           />
-          {guideOpen ? (
+          {guideOpen || inspected ? (
             <View style={styles.sidebar}>
-              <GuidePanel steps={steps} />
+              {inspected ? (
+                <View style={styles.sidebarCard}>
+                  <ComponentCard id={inspected} onClose={() => setInspected(null)} />
+                </View>
+              ) : null}
+              {guideOpen ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} /> : null}
             </View>
           ) : null}
           <View style={styles.main}>
-            <TabStrip tabs={[BENCH_TAB, CODE_TAB]} active={mainTab} onSelect={(id) => setTab(id as TabId)} />
+            <TabStrip
+              tabs={hasSerial ? [BENCH_TAB, CODE_TAB, SERIAL_TAB] : [BENCH_TAB, CODE_TAB]}
+              active={mainTab}
+              onSelect={(id) => setTab(id as TabId)}
+            />
             <View style={styles.editorArea} onLayout={(event) => setArea(event.nativeEvent.layout)}>
               {mainTab === 'code' ? (
-                <CodeView />
+                <CodeView sketch={lab.sketch} />
+              ) : mainTab === 'serial' ? (
+                <SerialPanel lines={state.serial} height={(area?.height ?? 420) - 32} />
               ) : area ? (
                 <View style={styles.benchCenter}>{renderBench(area.width - 32, area.height - 32)}</View>
               ) : null}
             </View>
-            <OutputPanel lines={lab.log} height={180} onClear={() => dispatch({ type: 'clearLog' })} />
+            <OutputPanel lines={state.log} height={180} onClear={() => dispatch({ type: 'clearLog' })} />
           </View>
         </View>
         <StatusBar left={statusLeft} right={statusRight} />
@@ -163,11 +206,16 @@ export function LabScreen() {
     <SafeAreaView style={styles.root}>
       <ExpoStatusBar style="light" />
       {toolbar}
-      <TabStrip tabs={[BENCH_TAB, CODE_TAB, GUIDE_TAB]} active={tab} onSelect={(id) => setTab(id as TabId)} />
+      <TabStrip
+        tabs={hasSerial ? [BENCH_TAB, CODE_TAB, SERIAL_TAB, GUIDE_TAB] : [BENCH_TAB, CODE_TAB, GUIDE_TAB]}
+        active={tab}
+        onSelect={(id) => setTab(id as TabId)}
+      />
       <ScrollView style={styles.narrowScroll} scrollEnabled={!dragging} contentContainerStyle={styles.narrowContent}>
         {tab === 'bench' ? (
           <View style={styles.narrowBench}>
             <NextStepBanner steps={steps} />
+            {inspected ? <ComponentCard id={inspected} onClose={() => setInspected(null)} /> : null}
             <View onLayout={(event) => setArea(event.nativeEvent.layout)}>
               {area ? renderBench(area.width, null) : null}
             </View>
@@ -175,11 +223,12 @@ export function LabScreen() {
         ) : null}
         {tab === 'code' ? (
           <View style={styles.narrowCode}>
-            <CodeView />
+            <CodeView sketch={lab.sketch} />
           </View>
         ) : null}
-        {tab === 'guide' ? <GuidePanel steps={steps} scrollable={false} /> : null}
-        <OutputPanel lines={lab.log} height={220} onClear={() => dispatch({ type: 'clearLog' })} />
+        {tab === 'serial' ? <SerialPanel lines={state.serial} height={320} /> : null}
+        {tab === 'guide' ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} scrollable={false} /> : null}
+        <OutputPanel lines={state.log} height={220} onClear={() => dispatch({ type: 'clearLog' })} />
       </ScrollView>
       <StatusBar left={statusLeft} right={status} />
     </SafeAreaView>
@@ -208,6 +257,11 @@ const styles = StyleSheet.create({
   editorArea: {
     flex: 1,
     backgroundColor: colors.canvas,
+  },
+  sidebarCard: {
+    padding: 12,
+    paddingBottom: 0,
+    backgroundColor: colors.panel,
   },
   benchCenter: {
     flex: 1,

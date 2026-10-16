@@ -1,43 +1,78 @@
-// Connects the workbench state to the shared checker. The lab-specific rules
-// live in src/lab/labs/, and the checking logic in src/lab/engine/.
+// Connects the workbench state to the lab runtime. The lab-specific rules
+// live in src/lab/labs/, and the checking logic in src/lab/engine/ and
+// src/lab/runtime.ts.
 
-import { type Analysis, type LabStep, analyzeSeriesLab, seriesLabSteps } from './engine/seriesLab';
-import type { Board, Wire } from './engine/netlist';
-import { type Hole, type PartId, leadHoles } from './geometry';
-import { LAB01 } from './labs/lab01';
+import type { Message, VerdictSpec } from './lab';
+import { LAB01 } from './labs/lab01v2';
+import type { Hole } from './geometry';
+import type { RuntimeStep } from './runtime';
+import { circuitOf, judge, runtimeSteps } from './runtime';
 
-export type { Analysis, LabStep, Verdict, VerdictCode } from './engine/seriesLab';
-export type { Wire } from './engine/netlist';
+export type Verdict = Message & { code: string };
+export type VerdictCode = string;
+export type { RuntimeStep as LabStep };
 
-/** The lab currently on the workbench. */
+/** The default lab on the workbench (Lab 01). */
 export const LAB = LAB01;
 
+/**
+ * A jumper on the workbench. A jumper taken from the parts bin starts with one
+ * end loose (null) until the student plugs it in; only jumpers with both ends
+ * plugged in conduct.
+ */
+export type BenchWire = { id: string; pin: string | null; hole: Hole | null };
+
+export const isPlugged = (wire: BenchWire): boolean => wire.pin !== null && wire.hole !== null;
+
 export type CircuitState = {
-  /** Hole of each part's left leg, or null while it sits in the parts bin. */
-  parts: Record<PartId, Hole | null>;
-  /** false: the LED's + leg (anode) is the left leg. */
+  /** Hole of each part's first leg, or null while it sits in the parts bin. */
+  parts: Record<string, Hole | null>;
+  /** Lab 01 convenience flags: the LED's flip and burn-out state. */
   ledFlipped: boolean;
   ledBurnt: boolean;
-  wires: Wire[];
+  wires: BenchWire[];
 };
 
-/** Describes the workbench in the checker's terms: placed parts (+ leg first), wires, burned-out parts. */
-export function toBoard(circuit: CircuitState): Board {
-  const parts: Board['parts'] = [];
-  for (const id of Object.keys(circuit.parts) as PartId[]) {
-    const left = circuit.parts[id];
-    if (!left) continue;
-    const [a, b] = leadHoles(id, left);
-    const polarized = id === 'led';
-    parts.push({ id, polarized, legs: polarized && circuit.ledFlipped ? [b, a] : [a, b] });
-  }
-  return { parts, wires: circuit.wires, burnt: circuit.ledBurnt ? ['led'] : [] };
+export type Analysis = { verdict: Verdict; bench: BenchStateView };
+
+type BenchStateView = ReturnType<typeof toBench>;
+
+function toBench(circuit: CircuitState) {
+  return {
+    parts: circuit.parts,
+    flipped: circuit.ledFlipped ? ['led'] : [],
+    burnt: circuit.ledBurnt ? ['led'] : [],
+    pressed: [] as string[],
+    wires: circuit.wires,
+  };
 }
 
+/** The verdict for the circuit as it stands. */
 export function analyzeCircuit(circuit: CircuitState): Analysis {
-  return analyzeSeriesLab(LAB, toBoard(circuit));
+  const bench = toBench(circuit);
+  return { verdict: judge(LAB01, bench), bench };
 }
 
-export function labSteps(analysis: Analysis, running: boolean): LabStep[] {
-  return seriesLabSteps(LAB, analysis, running);
+export function labSteps(analysis: Analysis, running = false): RuntimeStep[] {
+  return runtimeSteps(LAB01, analysis.bench, running);
 }
+
+/** Kept for the engine tests: the board a Lab 01-style state describes. */
+export function toBoard(circuit: CircuitState) {
+  return {
+    parts: Object.entries(circuit.parts)
+      .filter(([, start]) => start !== null)
+      .map(([id, start]) => ({
+        id,
+        def: id as 'resistor' | 'led',
+        legs: [start!, { row: start!.row, col: start!.col + (id === 'led' ? 1 : 3) }],
+        flipped: id === 'led' && circuit.ledFlipped,
+      })),
+    wires: circuit.wires.filter(isPlugged),
+    burnt: circuit.ledBurnt ? ['led'] : [],
+    pressed: [] as string[],
+  };
+}
+
+export { circuitOf };
+export type { VerdictSpec };

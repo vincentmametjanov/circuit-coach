@@ -38,7 +38,11 @@ The screen is laid out like the Arduino IDE: Verify and Upload buttons, a board 
 4. Drag from a GND pin to the LED's − leg column.
 5. Press Upload to run the `blink_d7` sketch and watch the LED blink.
 
-Dragging a jumper end off the breadboard removes it, and dragging a part off the breadboard returns it to the bin.
+Jumper wires are in the parts bin too: drag one into a pin or a hole, then drag its loose end to the other spot (dragging straight from a pin still works). Dragging a jumper end off the breadboard removes it, and dragging a part off the breadboard returns it to the bin.
+
+Tap any part in the bin, the Arduino or the breadboard to see what it is (`src/lab/components.ts`). Once placed, tapping the LED flips it.
+
+The Output console says only what happened. When something is wired wrong (a short, a backwards LED, a missing resistor, the wrong pin, a taken hole) it adds a red error naming the problem and a hint for fixing it, once, as soon as the mistake appears. Unfinished circuits are only reported when the student presses Verify or Upload.
 
 The rule checker intentionally uses fixed electrical rules rather than AI guidance. It merges breadboard strips and jumpers into nets, then looks for a pin 7 → resistor → LED → GND loop. It explains common mistakes: a backwards LED, a missing resistor (the LED burns out), the wrong pin, 5V instead of pin 7, short circuits, and parts that don't share a strip.
 

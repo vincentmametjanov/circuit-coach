@@ -1,7 +1,9 @@
 import { memo } from 'react';
 import { G, Rect, Text } from 'react-native-svg';
 
-import { BB_SCALE, BREADBOARD, type CanvasLayout, PITCH, ROW_LETTERS, type Point } from '../../lab/geometry';
+import { BB_SCALE, BREADBOARD, type CanvasLayout, PITCH, RAIL_BOTTOM_Y, RAIL_TOP_Y, ROW_LETTERS, type Point } from '../../lab/geometry';
+import type { LabDef } from '../../lab/lab';
+import { PART_DEFS } from '../../lab/parts';
 import { fonts } from '../../theme';
 
 const { cols, firstColX, rowY, width, height } = BREADBOARD;
@@ -15,6 +17,25 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
       <Rect x={2.5} y={3.5} width={width} height={height} rx={6} fill="#000" opacity={0.12} />
       <Rect x={0} y={0} width={width} height={height} rx={6} fill="#F8F6F0" stroke="#D9D3C4" strokeWidth={1} />
       <Rect x={5} y={69} width={width - 10} height={6} rx={2} fill="#E3DED0" />
+
+      {/* Power rails: every hole in the red (+) or blue (−) row is connected. */}
+      {(
+        [
+          { y: RAIL_TOP_Y, color: '#C0392B', sign: '+' },
+          { y: RAIL_BOTTOM_Y, color: '#2471A3', sign: '−' },
+        ] as const
+      ).map((rail) => (
+        <G key={rail.sign}>
+          <Rect x={colX(0) - 4} y={rail.y - 2.4} width={colX(cols - 1) - colX(0) + 8} height={4.8} rx={2.4} fill="#EFEBE1" />
+          {columns.map((col) => (
+            <Rect key={col} x={colX(col) - 1.9} y={rail.y - 1.9} width={3.8} height={3.8} rx={0.6} fill="#4A4744" />
+          ))}
+          <Rect x={colX(0) - 4} y={rail.y + (rail.sign === '+' ? 3.6 : -5.6)} width={colX(cols - 1) - colX(0) + 8} height={2} fill={rail.color} />
+          <Text x={8} y={rail.y + 2.2} fontSize={6} fontWeight="700" fill={rail.color} textAnchor="middle" fontFamily={fonts.svg}>
+            {rail.sign}
+          </Text>
+        </G>
+      ))}
 
       {/* Faint strip outlines: each column of five holes is connected underneath. */}
       {columns.map((col) => (
@@ -63,8 +84,16 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
 });
 
 /** Tray that holds parts that are not on the breadboard. */
-export const PartsBin = memo(function PartsBin({ layout }: { layout: CanvasLayout }) {
-  const { bin, binSlots } = layout;
+export const PartsBin = memo(function PartsBin({
+  layout,
+  lab,
+  slots,
+}: {
+  layout: CanvasLayout;
+  lab: LabDef;
+  slots: Record<string, Point>;
+}) {
+  const { bin, binJumper } = layout;
   const labelY = bin.y + bin.height - 22;
   return (
     <G>
@@ -83,14 +112,24 @@ export const PartsBin = memo(function PartsBin({ layout }: { layout: CanvasLayou
       <Text x={bin.x + 10} y={bin.y + 13} fontSize={6.5} fontWeight="700" fill="#5B7173" letterSpacing={1.2} fontFamily={fonts.svg}>
         PARTS BIN
       </Text>
-      <Text x={binSlots.resistor.x} y={labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
-        220 Ω resistor
-      </Text>
-      <Text x={binSlots.led.x} y={labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
-        Red LED
+      {lab.parts.map((spec) => (
+        <Text
+          key={spec.id}
+          x={slots[spec.id]?.x ?? bin.x + 40}
+          y={labelY}
+          fontSize={6}
+          fill="#5B7173"
+          textAnchor="middle"
+          fontFamily={fonts.svg}
+        >
+          {spec.name ?? PART_DEFS[spec.def].name}
+        </Text>
+      ))}
+      <Text x={binJumper.x} y={labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
+        Jumper wires
       </Text>
       <Text x={bin.x + 10} y={bin.y + bin.height - 8} fontSize={5.6} fill="#7F8C8D" fontFamily={fonts.svg}>
-        Jumper wires: drag from any pin on the Arduino
+        Drag a part onto the breadboard · tap any part to learn what it is
       </Text>
     </G>
   );

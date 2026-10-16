@@ -11,6 +11,7 @@ const KIND_COLOR: Record<LogKind, string> = {
   success: colors.consoleSuccess,
   warn: colors.consoleWarn,
   error: colors.consoleError,
+  hint: '#9FD8DB',
 };
 
 /** Black "Output" console under the editor, as in the Arduino IDE. */
@@ -35,7 +36,12 @@ export function OutputPanel({ lines, height, onClear }: { lines: LogLine[]; heig
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
+        accessibilityLiveRegion="polite"
+        accessibilityLabel="Output console"
       >
+        {lines.length === 0 ? (
+          <Text style={[styles.line, styles.placeholder]}>What you do on the workbench will show up here.</Text>
+        ) : null}
         {lines.map((line) => (
           <Text key={line.id} style={[styles.line, { color: KIND_COLOR[line.kind] }]} selectable>
             {line.text}
@@ -81,6 +87,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 3,
+  },
+  placeholder: {
+    color: colors.consoleMuted,
+    fontStyle: 'italic',
   },
   line: {
     fontFamily: fonts.mono,

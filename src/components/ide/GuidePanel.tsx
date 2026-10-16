@@ -1,20 +1,28 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { LabDef } from '../../lab/lab';
 import type { LabStep } from '../../lab/circuit';
 import { colors, fonts } from '../../theme';
 import { Icon } from './Icons';
 
 /** Side panel with the lab's steps and short explanations. */
-export function GuidePanel({ steps, scrollable = true }: { steps: LabStep[]; scrollable?: boolean }) {
+export function GuidePanel({
+  lab,
+  steps,
+  passed,
+  scrollable = true,
+}: {
+  lab: LabDef;
+  steps: LabStep[];
+  passed: boolean;
+  scrollable?: boolean;
+}) {
   const current = steps.findIndex((step) => !step.done);
   const content = (
     <View style={styles.content}>
       <Text style={styles.panelTitle}>LAB GUIDE</Text>
-      <Text style={styles.labTitle}>Lab 01 · Blink an LED on pin 7</Text>
-      <Text style={styles.body}>
-        Build the circuit on the breadboard, then upload the sketch. Press Verify (✓) any time to have the checker trace your
-        wiring.
-      </Text>
+      <Text style={styles.labTitle}>{lab.title}</Text>
+      <Text style={styles.body}>{lab.guide.intro}</Text>
 
       <View style={styles.steps}>
         {steps.map((step, index) => (
@@ -34,28 +42,25 @@ export function GuidePanel({ steps, scrollable = true }: { steps: LabStep[]; scr
         ))}
       </View>
 
-      <Explainer title="How a breadboard connects">
-        Each numbered column of five holes (a–e) is one metal strip underneath, and f–j is another. Two legs in the same
-        strip are connected; the center gap separates the halves.
-      </Explainer>
-      <Explainer title="LED polarity">
-        Current enters the + leg (anode, the longer bent one) and leaves the − leg (cathode, by the flat edge of the rim).
-        Backwards, it stays dark.
-      </Explainer>
-      <Explainer title="Why 220 Ω?">
-        An LED drops about 2 V. The resistor limits the rest: (5 V − 2 V) ÷ 220 Ω ≈ 14 mA, bright but under the LED’s 20 mA
-        limit.
-      </Explainer>
+      {passed && lab.guide.proTip ? (
+        <View style={styles.proTip}>
+          <Text style={styles.proTipTitle}>{lab.guide.proTip.title}</Text>
+          <Text style={styles.body}>{lab.guide.proTip.body}</Text>
+        </View>
+      ) : null}
 
-      <Explainer title="On the factory floor">
-        Machines show their state with indicator lights. A factory controller switches an output on to light a
-        “running” lamp, the same job your sketch does when it sets pin 7 HIGH.
-      </Explainer>
+      {lab.guide.explainers.map((item) => (
+        <Explainer key={item.title} title={item.title}>
+          {item.body}
+        </Explainer>
+      ))}
 
-      <View style={styles.nextCard}>
-        <Text style={styles.nextLabel}>UP NEXT</Text>
-        <Text style={styles.nextTitle}>Lab 02 · Button input and pull-up resistors</Text>
-      </View>
+      {lab.next ? (
+        <View style={styles.nextCard}>
+          <Text style={styles.nextLabel}>UP NEXT</Text>
+          <Text style={styles.nextTitle}>{lab.next.title}</Text>
+        </View>
+      ) : null}
     </View>
   );
 
@@ -176,6 +181,20 @@ const styles = StyleSheet.create({
     borderTopColor: colors.panelBorder,
   },
   explainerTitle: {
+    color: colors.tealDark,
+    fontFamily: fonts.ui,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  proTip: {
+    gap: 4,
+    padding: 12,
+    borderRadius: 6,
+    backgroundColor: colors.tealPale,
+    borderWidth: 1,
+    borderColor: colors.teal,
+  },
+  proTipTitle: {
     color: colors.tealDark,
     fontFamily: fonts.ui,
     fontSize: 13,
