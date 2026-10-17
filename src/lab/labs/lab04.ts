@@ -29,22 +29,41 @@ void loop() {
   delay(200);
 }`;
 
-/**
- * What the pot actually feeds A0: the knob's fraction (0–1) when the outer
- * legs reach 5V and GND; a stuck 0 or 1023 when one outer leg is missing;
- * null when the wiper isn't on A0 at all.
- */
-export function potReading(c: Circuit, knob: number): number | null {
+/** Which supply each outer leg reaches: '5V', 'GND', or null when unwired. */
+function outerSupplies(c: Circuit): [string | null, string | null] | null {
   const legs = c.legNets('pot');
   if (!legs) return null;
-  const [outerA, wiper, outerB] = legs;
-  if (!c.wired(WIPER.node) || wiper !== c.net(WIPER.node)) return null;
-  const onA = c.wired('5V') && outerA === c.net('5V');
-  const onB = c.wired('GND') && outerB === c.net('GND');
-  if (onA && onB) return Math.round(knob * 1023);
-  if (onA) return 1023;
-  if (onB) return 0;
-  return null;
+  const supply = (net: string) =>
+    c.wired('5V') && net === c.net('5V') ? '5V' : c.wired('GND') && net === c.net('GND') ? 'GND' : null;
+  return [supply(legs[0]), supply(legs[2])];
+}
+
+/** True when the wiper (middle leg) is what A0 reads. */
+function wiperOnA0(c: Circuit): boolean {
+  const legs = c.legNets('pot');
+  return !!legs && c.wired(WIPER.node) && legs[1] === c.net(WIPER.node);
+}
+
+/**
+ * What A0 reads from the pot. The knob's fraction (0–1) scales between the
+ * two outer legs, so either orientation works (one just turns the other way).
+ * One outer leg missing pins the reading to the other leg's end; both outer
+ * legs on one supply pins it there. Null when the wiper isn't on A0, or when
+ * neither outer leg is wired (A0 floats).
+ */
+export function potReading(c: Circuit, knob: number): number | null {
+  const outer = outerSupplies(c);
+  if (!outer || !wiperOnA0(c)) return null;
+  const level = (supply: string | null) => (supply === '5V' ? 1023 : supply === 'GND' ? 0 : null);
+  const [a, b] = outer.map(level);
+  if (a !== null && b !== null) return Math.round(a + (b - a) * knob);
+  return a ?? b;
+}
+
+/** True when the pot is a working divider: one outer leg on 5V, the other on GND, wiper on A0. */
+function dividerWired(c: Circuit): boolean {
+  const outer = outerSupplies(c);
+  return !!outer && wiperOnA0(c) && outer.includes('5V') && outer.includes('GND');
 }
 
 export const LAB04: LabDef = {
@@ -54,8 +73,8 @@ export const LAB04: LabDef = {
   parts: [{ def: 'pot', id: 'pot', name: '10 kΩ potentiometer' }],
 
   verdict: {
-    mistakes: ['short', 'wiperWrongPin', 'outerMissing'],
-    order: ['short', 'pass', 'wiperWrongPin', 'outerMissing', 'missingParts', 'open'],
+    mistakes: ['short', 'wiperOnSupply', 'wiperWrongPin', 'outerSame'],
+    order: ['short', 'wiperOnSupply', 'pass', 'wiperWrongPin', 'outerSame', 'outerMissing', 'missingParts', 'open'],
     check(code, c) {
       switch (code) {
         case 'short': {
@@ -66,19 +85,29 @@ export const LAB04: LabDef = {
             detail: '5V must reach the pot’s outer leg, not a GND strip. On a real board the USB fuse trips.',
           };
         }
-        case 'pass': {
+        // The wiper on a supply: turned to the far end, the track's last few
+        // ohms sit straight across 5V and GND.
+        case 'wiperOnSupply': {
           const legs = c.legNets('pot');
           if (!legs) return null;
-          const reading = potReading(c, 0.5);
-          if (reading === null || (reading !== 512 && reading !== 511)) {
-            // 0.5 knob → 511/512 depending on rounding; anything in between means wired right.
-            if (!(reading !== null && reading > 500 && reading < 524)) return null;
-          }
+          const supply = c.wired('5V') && legs[1] === c.net('5V') ? '5V' : c.wired('GND') && legs[1] === c.net('GND') ? 'GND' : null;
+          if (!supply) return null;
+          const outer = outerSupplies(c);
+          if (!outer?.some((s) => s && s !== supply)) return null;
           return {
-            title: 'Circuit check passed',
-            detail: 'Outer legs on 5V and GND, wiper on A0. Turn the knob and watch the Serial Monitor: 0–1023, 0–5 V.',
+            title: `The wiper is wired to ${supply}`,
+            detail: `Turn the knob to the end and the wiper touches the other outer leg: ${supply} would connect almost straight to ${
+              supply === '5V' ? 'GND' : '5V'
+            }. The middle leg is the reading, so it goes to A0. The outer legs go to 5V and GND.`,
           };
         }
+        case 'pass':
+          return dividerWired(c)
+            ? {
+                title: 'Circuit check passed',
+                detail: 'Outer legs on 5V and GND, wiper on A0. Turn the knob and watch the Serial Monitor: 0–1023, 0–5 V.',
+              }
+            : null;
         case 'wiperWrongPin': {
           const legs = c.legNets('pot');
           if (!legs) return null;
@@ -94,17 +123,27 @@ export const LAB04: LabDef = {
             detail: `Only the analog pins (A0–A5) read a voltage in between 0 and 5 V. ${pin.name} would read just 0 or 1. Move the wiper’s jumper to A0.`,
           };
         }
-        case 'outerMissing': {
-          const legs = c.legNets('pot');
-          if (!legs || !c.wired(WIPER.node) || legs[1] !== c.net(WIPER.node)) return null;
-          const onA = c.wired('5V') && legs[0] === c.net('5V');
-          const onB = c.wired('GND') && legs[2] === c.net('GND');
-          if (onA && onB) return null;
+        case 'outerSame': {
+          const outer = outerSupplies(c);
+          if (!outer || !outer[0] || outer[0] !== outer[1]) return null;
           return {
-            title: 'One of the outer legs isn’t connected',
-            detail: `The knob only divides the voltage across the two outer legs. With ${
-              onA ? 'the GND side' : 'the 5V side'
-            } missing, the reading is stuck at an end. Wire the outer legs to 5V and GND.`,
+            title: `Both outer legs are on ${outer[0]}`,
+            detail: `The knob divides the voltage between its outer legs. With both on ${outer[0]}, every position reads the same (${
+              outer[0] === '5V' ? '1023' : '0'
+            }). Move one outer leg's jumper to ${outer[0] === '5V' ? 'GND' : '5V'}.`,
+          };
+        }
+        case 'outerMissing': {
+          const outer = outerSupplies(c);
+          if (!outer || !wiperOnA0(c) || (outer[0] && outer[1])) return null;
+          const has = outer[0] ?? outer[1];
+          return {
+            title: has ? 'One of the outer legs isn’t connected' : 'The outer legs aren’t connected',
+            detail: has
+              ? `The knob only divides the voltage across the two outer legs. With just ${has} wired, the reading is stuck at ${
+                  has === '5V' ? '1023' : '0'
+                }. Wire the other outer leg to ${has === '5V' ? 'GND' : '5V'}.`
+              : 'A0 is wired to the wiper, but nothing feeds the track, so the reading floats. Wire one outer leg to 5V and the other to GND.',
           };
         }
         case 'missingParts':
@@ -127,7 +166,7 @@ export const LAB04: LabDef = {
 
   behavior: {
     tickMs: 400,
-    analogReads(lab, store) {
+    analogReads(lab, store): Record<string, number> {
       const reading = potReading(circuitOf(lab, store.state), knobOf(store.state));
       return reading === null ? {} : { A0: reading };
     },
@@ -157,10 +196,10 @@ export const LAB04: LabDef = {
     {
       id: 'outer',
       title: 'Wire the outer legs to 5V and GND',
-      detail: 'These set the ends of the dial: all the way down is 0 V, all the way up is 5 V.',
+      detail: 'One outer leg to 5V, the other to GND. Either way round works; it only changes which way the knob turns up.',
       built: (q) => {
-        const legs = q.legNets('pot');
-        return !!legs && q.wired('5V') && q.wired('GND') && legs[0] === q.net('5V') && legs[2] === q.net('GND');
+        const outer = outerSupplies(q);
+        return !!outer && outer.includes('5V') && outer.includes('GND');
       },
     },
     {

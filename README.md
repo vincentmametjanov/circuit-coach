@@ -1,6 +1,6 @@
 # Circuit Coach
 
-A universal starter app for novice electrical-engineering students. The first lab teaches a safe Arduino LED circuit through guided wiring actions and deterministic circuit checks.
+A universal starter app for novice electrical-engineering students. Four labs are ready: blink an LED (01), a start button with a pull-down (02), a three-lamp machine stack light (03), and a potentiometer speed dial read on A0 (04). Students wire real parts on a simulated Uno and breadboard, and deterministic circuit checks explain every mistake.
 
 ## Targets
 
@@ -52,7 +52,7 @@ The rule checker intentionally uses fixed electrical rules rather than AI guidan
 npm test
 ```
 
-Unit tests in `src/lab/__tests__/` cover the engine (nets, series paths) and every Lab 01 verdict and guide step.
+Unit tests in `src/lab/__tests__/` cover the engine (nets, power rails, breadboard jumpers, series paths), the Output console, and every verdict, guide step and running behavior of Labs 01–04. Every test circuit is one a student could actually build: one jumper per Arduino pin, breadboard jumpers to the rails.
 
 ## App structure
 
@@ -66,8 +66,11 @@ The course outline lives in `src/lab/catalog.ts`; set `ready: true` when a lab s
 
 Reusable circuit simulations and UI components belong outside `src/app/`.
 
-- `src/lab/engine/` — the shared checker: turns strips and jumpers into nets (union-find) and searches for series paths; decides which mistake applies, in order
-- `src/lab/labs/` — one file per lab: its parts, goal loop, coach messages and guide steps, as data. Adding a lab means adding a file here, not new checking code
-- `src/lab/` — breadboard and board geometry, the adapter from workbench state to the checker, and the lab state reducer (no UI)
+- `src/lab/engine/circuit.ts` — the netlist: breadboard strips, power rails, pin jumpers and breadboard jumpers merged into nets (union-find), plus series-path search through parts
+- `src/lab/engine/ledLoop.ts` — reusable checks for LED-and-resistor loops (shorts, missing resistor, backwards LED, wrong pin)
+- `src/lab/labs/` — one file per lab (`LabDef` in `src/lab/lab.ts`): parts bin, sketch, ordered verdict checks with their wording, guide steps, and the behavior model that runs while the sketch is uploaded. Register new labs in `src/lab/labs/index.ts` and set `ready: true` in the catalog
+- `src/lab/runtime.ts` — the shared reducer every lab runs on: the Output console, mistakes flagged once as they happen, LED glow and burn-out computed from the wiring and the pins the sketch drives HIGH, and the Serial Monitor
+- `src/lab/parts.ts` — the parts catalog (leg patterns, polarity, buttons' internal contacts) and how identical parts stack in the bin
+- `src/lab/geometry.ts` — board, breadboard, rail and canvas coordinates (no UI)
 - `src/components/workbench/` — SVG drawings of the Uno, breadboard and parts, plus drag-and-drop
 - `src/components/ide/` — the IDE-style toolbar, tabs, guide panel, sketch view and Output console

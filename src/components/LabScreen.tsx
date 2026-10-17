@@ -7,11 +7,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ComponentId } from '../lab/components';
 import { fitCanvas } from '../lab/geometry';
 import type { LabDef } from '../lab/lab';
+import { binRowsFor } from '../lab/parts';
 import {
   type RuntimeAction,
   type RuntimeState,
   createLabStore,
   judge,
+  ledGlowFor,
   runtimeReducer,
   runtimeSteps,
 } from '../lab/runtime';
@@ -22,7 +24,6 @@ import { ComponentCard } from './ide/ComponentCard';
 import { GuidePanel, NextStepBanner } from './ide/GuidePanel';
 import { OutputPanel } from './ide/OutputPanel';
 import { SerialPanel } from './ide/SerialPanel';
-import type { LedGlow } from './workbench/Parts';
 import { Workbench } from './workbench/Workbench';
 
 type TabId = 'bench' | 'code' | 'guide' | 'serial';
@@ -86,21 +87,8 @@ export function LabScreen({ lab }: { lab: LabDef }) {
     dispatch({ type: 'reset' });
   };
 
-  // LED glow per instance, from the verdict and the behavior model.
-  const ledGlow = useMemo(() => {
-    const glow: Record<string, LedGlow> = {};
-    for (const spec of lab.parts) {
-      if (spec.def !== 'led') continue;
-      const burnt = state.burnt.includes(spec.id);
-      let level: LedGlow = 'off';
-      if (!burnt && verdict.code === 'pass' && state.running && state.behavior.pinHigh === true) level = 'on';
-      if (!burnt && state.behavior.ledOn === true) level = 'on';
-      if (!burnt && Array.isArray(state.behavior.lit) && (state.behavior.lit as string[]).includes(spec.id)) level = 'on';
-      if (!burnt && verdict.code === 'alwaysOn') level = verdict.source === '3V3' ? 'dim' : 'on';
-      glow[spec.id] = level;
-    }
-    return glow;
-  }, [lab, state, verdict]);
+  // How each LED glows comes from the wiring and the pins the sketch drives HIGH.
+  const ledGlow = useMemo(() => ledGlowFor(lab, state), [lab, state]);
 
   const sketch = lab.sketch.name;
   const status =
@@ -133,7 +121,7 @@ export function LabScreen({ lab }: { lab: LabDef }) {
   const hasSerial = !!lab.behavior.analogReads || state.serial.length > 0;
 
   const renderBench = (width: number, height: number | null) => {
-    const { layout, scale } = fitCanvas(width, height);
+    const { layout, scale } = fitCanvas(width, height, binRowsFor(lab.parts));
     return (
       <Workbench
         layout={layout}
@@ -214,7 +202,7 @@ export function LabScreen({ lab }: { lab: LabDef }) {
       <ScrollView style={styles.narrowScroll} scrollEnabled={!dragging} contentContainerStyle={styles.narrowContent}>
         {tab === 'bench' ? (
           <View style={styles.narrowBench}>
-            <NextStepBanner steps={steps} />
+            <NextStepBanner steps={steps} doneText={lab.behavior.success ?? 'Every step is done.'} />
             {inspected ? <ComponentCard id={inspected} onClose={() => setInspected(null)} /> : null}
             <View onLayout={(event) => setArea(event.nativeEvent.layout)}>
               {area ? renderBench(area.width, null) : null}

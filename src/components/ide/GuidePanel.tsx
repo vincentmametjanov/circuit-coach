@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { LabDef } from '../../lab/lab';
-import type { LabStep } from '../../lab/circuit';
+import type { RuntimeStep as LabStep } from '../../lab/runtime';
 import { colors, fonts } from '../../theme';
 import { Icon } from './Icons';
 
@@ -77,14 +77,14 @@ function Explainer({ title, children }: { title: string; children: string }) {
 }
 
 /** One-line version of the current step, shown above the canvas on phones. */
-export function NextStepBanner({ steps }: { steps: LabStep[] }) {
+export function NextStepBanner({ steps, doneText }: { steps: LabStep[]; /** Shown once every step is done. */ doneText: string }) {
   const index = steps.findIndex((step) => !step.done);
   const done = index === -1;
   const step = done ? null : steps[index];
   return (
     <View style={[styles.banner, done && styles.bannerDone]}>
       <Text style={styles.bannerLabel}>{done ? 'LAB COMPLETE' : `STEP ${index + 1} OF ${steps.length}`}</Text>
-      <Text style={styles.bannerTitle}>{step ? step.title : 'Your LED is blinking on pin 7.'}</Text>
+      <Text style={styles.bannerTitle}>{step ? step.title : doneText}</Text>
       {step ? <Text style={styles.bannerDetail}>{step.detail}</Text> : null}
     </View>
   );

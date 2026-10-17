@@ -42,6 +42,11 @@ export type Behavior = {
   onPress?: (lab: LabDef, store: LabStore, part: string, pressed: boolean) => LabStore;
   /** What each analog node reads (0–1023), for labs with sensors. */
   analogReads?: (lab: LabDef, store: LabStore) => Record<string, number>;
+  /**
+   * The digital pins the running sketch is driving HIGH right now, as board
+   * nodes ('D7'). LEDs glow, and burn out, from these plus the wired supplies.
+   */
+  outputs?: (lab: LabDef, store: LabStore) => string[];
   /** Extra verdict for the running circuit, e.g. "the LED isn't blinking". */
   runningNote?: (lab: LabDef, store: LabStore) => Message | null;
   /** Success line logged when the lab passes on upload. */
@@ -56,7 +61,10 @@ export type LabDef = {
   /** The parts bin contents, in display order. */
   parts: PartSpec[];
   verdict: VerdictSpec;
-  /** Extra checks while the circuit builds (burn-out physics). */
+  /**
+   * Extra physics beyond the shared LED burn-out (which every lab gets from
+   * the runtime). Returns lines to log when something happens.
+   */
   physics?: (lab: LabDef, store: LabStore) => LabLog | null;
   behavior: Behavior;
   steps: LabStepSpec[];

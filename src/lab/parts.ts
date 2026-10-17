@@ -3,7 +3,7 @@
 // instance id, so a lab can use three LEDs); the workbench draws each instance
 // and the checker reads its legs.
 
-import type { Hole, Point } from './geometry';
+import type { Hole } from './geometry';
 
 export type PartDefId = 'resistor' | 'resistor10k' | 'led' | 'button' | 'pot';
 
@@ -125,15 +125,21 @@ export const PART_DEFS: Record<PartDefId, PartDef> = {
 /** A part instance in a lab: which definition, and the id the lab uses for it. */
 export type PartSpec = { def: PartDefId; id: string; name?: string; color?: string };
 
+/** One slot in the parts bin: identical part instances stack into a single slot. */
+export type BinGroup = { key: string; ids: string[]; def: PartDefId; label: string };
 
-/** The point a part's artwork is anchored to, given the points of its legs. */
-export function partAnchor(legPoints: Point[]): Point {
-  const x = legPoints.reduce((sum, p) => sum + p.x, 0) / legPoints.length;
-  const y = legPoints.reduce((sum, p) => sum + p.y, 0) / legPoints.length;
-  return { x, y };
+/** The parts bin's slots for a lab, in its parts-list order: "220 Ω resistor ×3" is one slot. */
+export function binGroups(parts: PartSpec[]): BinGroup[] {
+  const groups: BinGroup[] = [];
+  for (const spec of parts) {
+    const name = spec.name ?? PART_DEFS[spec.def].name;
+    const key = `${spec.def}|${spec.color ?? ''}|${name}`;
+    const group = groups.find((g) => g.key === key);
+    if (group) group.ids.push(spec.id);
+    else groups.push({ key, ids: [spec.id], def: spec.def, label: name });
+  }
+  return groups.map((g) => (g.ids.length > 1 ? { ...g, label: `${g.label} ×${g.ids.length}` } : g));
 }
 
-/** True when a part placed with its first leg in `start` stays inside the grid. */
-export function partFits(def: PartDefId, start: Hole, cols: number, rows: number): boolean {
-  return partLegs(def, start).every((leg) => leg.col >= 0 && leg.col < cols && leg.row >= 0 && leg.row < rows);
-}
+/** Labs with more than four slots get a second row in the bin. */
+export const binRowsFor = (parts: PartSpec[]): 1 | 2 => (binGroups(parts).length > 4 ? 2 : 1);

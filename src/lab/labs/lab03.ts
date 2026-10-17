@@ -3,11 +3,12 @@
 // line through RUN → WARN → STOP on each press. Teaches several outputs, a
 // state machine, and edge detection.
 
+import type { Circuit } from '../engine/circuit';
 import { type LedLoop, findLoop, findShort } from '../engine/ledLoop';
 import type { LabDef } from '../lab';
 import { PIN_BY_ID } from '../geometry';
-import { circuitOf } from '../runtime';
-import { inputState } from './lab02';
+import { type LabStore, type RuntimeState, appendLog, circuitOf } from '../runtime';
+import { buttonWorks, inputState, readInput } from './lab02';
 
 type Channel = { color: string; led: string; resistor: string; signal: LedLoop['signal']; state: string };
 
@@ -45,7 +46,7 @@ void loop() {
 }`;
 
 /** True when one resistor's legs are shared by two different LEDs. */
-function sharedResistor(c: Parameters<typeof findLoop>[0]): Channel[] | null {
+function sharedResistor(c: Circuit): Channel[] | null {
   const shared = CHANNELS.map((ch) => ch.resistor).filter((id) => {
     const legs = c.legNets(id);
     if (!legs) return false;
@@ -74,7 +75,8 @@ export const LAB03: LabDef = {
   ],
 
   verdict: {
-    mistakes: ['short', 'reversed', 'noResistor', 'ledShorted', 'sharedResistor', 'wrongChannel', 'alwaysPressed', 'floating'],
+    // A floating pin 2 is reported on Verify/Upload and shown while running, not mid-build.
+    mistakes: ['short', 'sharedResistor', 'ledLoops', 'alwaysPressed'],
     order: [
       'short',
       'burnt',
@@ -83,6 +85,7 @@ export const LAB03: LabDef = {
       'ledLoops',
       'alwaysPressed',
       'floating',
+      'buttonOpen',
       'missingParts',
       'open',
     ],
@@ -110,7 +113,7 @@ export const LAB03: LabDef = {
             const found = findLoop(c, loopOf(ch));
             return found?.kind === 'ok' && found.source.node === ch.signal.node;
           });
-          if (!loopsOk || sharedResistor(c) || inputState(c) !== 'low') return null;
+          if (!loopsOk || sharedResistor(c) || inputState(c) !== 'low' || !buttonWorks(c)) return null;
           return {
             title: 'Circuit check passed',
             detail: 'Three loops — pin 5 → green, pin 6 → yellow, pin 7 → red — each with its own 220 Ω resistor, and the button reads LOW at rest.',
@@ -156,6 +159,14 @@ export const LAB03: LabDef = {
               };
             }
             if (found.kind === 'wrongPin') {
+              // Another channel's pin: two colors are swapped.
+              const other = CHANNELS.find((o) => o.signal.name === found.pinName);
+              if (other) {
+                return {
+                  title: `The ${ch.color} LED is on ${other.signal.name}`,
+                  detail: `The sketch lights ${ch.color} for ${ch.state} on ${ch.signal.name}, but right now ${other.signal.name} drives it, so ${other.state} would light the ${ch.color} lamp. Move its signal jumper to ${ch.signal.name}.`,
+                };
+              }
               return {
                 title: `The ${ch.color} LED’s signal jumper is on ${found.pinName}`,
                 detail: `The sketch drives ${ch.signal.name} for ${ch.state}, so ${found.pinName} never lights it. Move that jumper to ${ch.signal.name}.`,
@@ -186,6 +197,14 @@ export const LAB03: LabDef = {
             detail: 'Add the 10 kΩ pull-down from pin 2’s column to GND so the button reads LOW until it is pressed.',
           };
         }
+        case 'buttonOpen':
+          return c.part('button') && inputState(c) === 'low' && !buttonWorks(c)
+            ? {
+                title: 'Pressing the button doesn’t reach pin 2',
+                detail:
+                  'Pin 2 reads LOW, but it would stay LOW when you press, so the light could never step. Wire 5V to one side of the button and pin 2 to the other side, across the center gap.',
+              }
+            : null;
         case 'missingParts': {
           const names: [string, string][] = [
             ['ledGreen', 'the green LED'],
@@ -208,7 +227,7 @@ export const LAB03: LabDef = {
           return {
             title: 'The circuit isn’t finished yet',
             detail:
-              'Trace each loop: pin 5 → resistor → green LED → GND, and the same for 6 (yellow) and 7 (red). The − rail is handy: wire it to GND once, then land every LED’s − leg on it.',
+              'Trace each loop: pin 5 → resistor → green LED → GND, and the same for 6 (yellow) and 7 (red). The − rail is handy: wire it to GND once, then run a short jumper from each LED’s − column to the rail.',
           };
         default:
           return null;
@@ -216,50 +235,27 @@ export const LAB03: LabDef = {
     },
   },
 
-  physics(lab, store) {
-    const { state } = store;
-    for (const ch of CHANNELS) {
-      if (state.burnt.includes(ch.led) || !state.parts[ch.led]) continue;
-      const found = findLoop(circuitOf(lab, state), loopOf(ch));
-      if (found?.kind !== 'noResistor') continue;
-      const lit = (state.behavior.lit as string[] | undefined) ?? [];
-      // A wrong-supply loop is always powered; the sketch's own pin only burns
-      // the LED while the state machine has it lit.
-      const powered = found.source.node !== ch.signal.node || (state.running && lit.includes(ch.led));
-      if (!powered) continue;
-      store.state = { ...state, burnt: [...state.burnt, ch.led] };
-      return [
-        ['error', `Pop! The ${ch.color} LED burned out: with no resistor in its loop, nothing limited the current.`],
-        ['hint', `Hint: Swap in a fresh ${ch.color} LED and put its own 220 Ω resistor in series with it.`],
-      ];
-    }
-    return null;
-  },
-
   behavior: {
     tickMs: 120,
-    onTick(lab, store) {
-      const { state } = store;
-      const stage = (state.behavior.stage as number | undefined) ?? 0;
-      const lit = CHANNELS.filter((_, i) => i === stage).map((ch) => ch.led);
-      return { lab, state: { ...state, behavior: { ...state.behavior, stage, lit } } };
+    // The light starts on RUN; the reading at upload is the baseline, not a press.
+    onUpload(lab, store) {
+      const reading = readInput(circuitOf(lab, store.state), store);
+      const state: RuntimeState = {
+        ...store.state,
+        seed: reading.seed,
+        behavior: { ...store.state.behavior, stage: 0, lastReading: reading.value },
+      };
+      // The upload report already explains a floating pin 2; don't repeat it on the first loop.
+      return { lab, state: { ...state, behavior: { ...state.behavior, floatWarned: reading.floating } } };
     },
-    onPress(lab, store, part, pressed) {
-      if (part !== 'button') return store;
-      const { state } = store;
-      // Edge detection: one step per press, counted when the button goes down.
-      const was = state.behavior.wasPressed === true;
-      if (pressed && !was) {
-        const stage = (((state.behavior.stage as number | undefined) ?? 0) + 1) % 3;
-        const lit = CHANNELS.filter((_, i) => i === stage).map((ch) => ch.led);
-        return { lab, state: { ...state, behavior: { ...state.behavior, stage, lit, wasPressed: true } } };
-      }
-      return { lab, state: { ...state, behavior: { ...state.behavior, wasPressed: pressed } } };
-    },
+    onTick: runLoop,
+    onPress: (lab, store) => runLoop(lab, store),
+    // The sketch drives only the current stage's pin HIGH.
+    outputs: (_lab, store) => [CHANNELS[stageOf(store.state)].signal.node],
     runningNote(lab, store) {
       const input = inputState(circuitOf(lab, store.state));
-      if (input === 'floating') {
-        return { title: 'The sketch is running, but pin 2 is floating — the light may step on its own', detail: '' };
+      if (input === 'floating' || input === 'disconnected') {
+        return { title: 'The sketch is running, but pin 2 is floating, so the light may step on its own', detail: '' };
       }
       return { title: 'The sketch is running, but the stack light doesn’t match the steps', detail: '' };
     },
@@ -279,7 +275,7 @@ export const LAB03: LabDef = {
     {
       id: 'yellow',
       title: 'Add the yellow loop on pin 6',
-      detail: 'Its own resistor and LED. The − rail makes this easy: wire it to GND once and land every − leg on it.',
+      detail: 'Its own resistor and LED. The − rail makes this easy: wire GND to the rail once, then jumper each LED’s − column to it.',
       built: (q) => {
         const found = findLoop(q, loopOf(CHANNELS[1]));
         return found?.kind === 'ok' && found.source.node === 'D6';
@@ -298,7 +294,7 @@ export const LAB03: LabDef = {
       id: 'button',
       title: 'Wire the button to pin 2 with its pull-down',
       detail: 'Same circuit as Lab 02: 5V → button → pin 2, and the 10 kΩ resistor from pin 2’s net to GND.',
-      built: (q) => inputState(q) === 'low',
+      built: (q) => inputState(q) === 'low' && buttonWorks(q),
     },
     {
       id: 'upload',
@@ -321,7 +317,7 @@ export const LAB03: LabDef = {
       },
       {
         title: 'The power rails',
-        body: 'The red (+) and blue (−) strips along the breadboard edges are each connected end to end. Wire the − rail to GND once and every LED’s short leg can land on it — how real control panels use a common ground bus.',
+        body: 'The red (+) and blue (−) strips along the breadboard edges are each connected end to end. Wire GND to the − rail once, then run a short jumper from each LED’s − column to the rail. Real control panels use the same idea: one common ground bus.',
       },
       {
         title: 'On the factory floor',
@@ -335,3 +331,30 @@ export const LAB03: LabDef = {
   },
   next: { id: 'lab04', title: 'Lab 04 · Speed dial' },
 };
+
+const stageOf = (state: RuntimeState) => (typeof state.behavior.stage === 'number' ? state.behavior.stage : 0);
+
+/**
+ * One pass of the sketch's loop(): read pin 2 and step the state machine on a
+ * LOW → HIGH edge only, so one press counts once. A floating pin 2 produces
+ * random edges, and the light steps by itself.
+ */
+function runLoop(lab: LabDef, store: LabStore): LabStore {
+  const { state } = store;
+  const reading = readInput(circuitOf(lab, state), store);
+  const last = state.behavior.lastReading === true;
+  const stage = reading.value && !last ? (stageOf(state) + 1) % 3 : stageOf(state);
+  let next: RuntimeState = {
+    ...state,
+    seed: reading.seed,
+    behavior: { ...state.behavior, stage, lastReading: reading.value },
+  };
+  if (reading.floating && !state.behavior.floatWarned) {
+    next = appendLog(
+      { ...next, behavior: { ...next.behavior, floatWarned: true } },
+      ['warn', 'Pin 2 is floating: the light steps on its own as the reading jumps.'],
+      ['hint', 'Hint: Wire the 10 kΩ pull-down from pin 2’s column to GND so the input reads LOW until you press.'],
+    );
+  }
+  return { lab, state: next };
+}

@@ -1,135 +1,138 @@
-// Lab 03 checker and behavior tests: three LED loops on pins 5/6/7, the
-// shared-resistor warning, per-color mistakes, and the press-stepped state
-// machine.
+// Lab 03 checker and behavior tests: three LED loops on pins 5/6/7 sharing the
+// − rail, the shared-resistor warning, per-color mistakes, and the
+// press-stepped state machine. Every layout here can be built on the
+// workbench: one jumper per Arduino pin, breadboard jumpers to the rail.
 
 import { describe, expect, it } from 'vitest';
 
 import type { Hole } from '../geometry';
 import { LAB03 } from '../labs/lab03';
-import { createLabStore, judge, runtimeReducer, runtimeSteps, type RuntimeState } from '../runtime';
+import {
+  type BenchState,
+  type RuntimeState,
+  createLabStore,
+  judge,
+  ledGlowFor,
+  runtimeReducer,
+  runtimeSteps,
+} from '../runtime';
 
-const top = (col: number, row = 0): Hole => ({ row, col: col - 1 });
-const bottom = (col: number, row = 7): Hole => ({ row, col: col - 1 });
-const rail = (col: number): Hole => ({ row: 10, col: col - 1 });
+/** Column 1-based like the breadboard labels; rows a–e are 0–4, f–j are 5–9. */
+const at = (col: number, row: number): Hole => ({ row, col: col - 1 });
+const RAIL = (col: number): Hole => ({ row: 10, col: col - 1 });
 
+type Ids = 'ledGreen' | 'ledYellow' | 'ledRed' | 'resistorG' | 'resistorY' | 'resistorR' | 'button' | 'resistor10k';
 type Layout = {
-  leds?: Partial<Record<'ledGreen' | 'ledYellow' | 'ledRed', number>>;
-  resistors?: Partial<Record<'resistorG' | 'resistorY' | 'resistorR', number>>;
-  button?: number;
-  resistor10k?: number;
+  parts?: Partial<Record<Ids, Hole>>;
   wires?: [pin: string, hole: Hole][];
+  /** Breadboard jumpers between two holes. */
+  links?: [Hole, Hole][];
+  flipped?: Ids[];
 };
 
-function bench({ leds = {}, resistors = {}, button, resistor10k, wires = [] }: Layout) {
+function bench({ parts = {}, wires = [], links = [], flipped = [] }: Layout): BenchState {
+  const all: Record<string, Hole | null> = {};
+  for (const spec of LAB03.parts) all[spec.id] = parts[spec.id as Ids] ?? null;
   return {
-    parts: {
-      ledGreen: leds.ledGreen === undefined ? null : top(leds.ledGreen, 2),
-      ledYellow: leds.ledYellow === undefined ? null : top(leds.ledYellow, 2),
-      ledRed: leds.ledRed === undefined ? null : top(leds.ledRed, 2),
-      resistorG: resistors.resistorG === undefined ? null : top(resistors.resistorG),
-      resistorY: resistors.resistorY === undefined ? null : top(resistors.resistorY),
-      resistorR: resistors.resistorR === undefined ? null : top(resistors.resistorR),
-      button: button === undefined ? null : top(button, 2),
-      resistor10k: resistor10k === undefined ? null : bottom(resistor10k),
-    },
-    flipped: [] as string[],
-    burnt: [] as string[],
-    pressed: [] as string[],
-    wires: wires.map(([pin, hole], i) => ({ id: `w${i}`, pin, hole })),
+    parts: all,
+    flipped,
+    burnt: [],
+    pressed: [],
+    wires: [
+      ...wires.map(([pin, hole], i) => ({ id: `w${i}`, pin, hole })),
+      ...links.map(([a, b], i) => ({ id: `l${i}`, pin: null, hole: a, hole2: b })),
+    ],
   };
 }
 
 const verdict = (layout: Layout) => judge(LAB03, bench(layout));
 
-// Textbook build: green loop cols 1–5 on pin 5, yellow cols 6–10 on pin 6,
-// red cols 11–15 on pin 7, all − legs grounded directly; button across the gap
-// is omitted here — the button checks below add it.
+// The textbook build.
+//   Green:  220 Ω a1–a4, LED c4(+)–c5(−), pin 5 → b1, e5 → − rail
+//   Yellow: 220 Ω a6–a9, LED c9(+)–c10(−), pin 6 → b6, e10 → − rail
+//   Red:    220 Ω f1–f4, LED h4(+)–h5(−), pin 7 → g1, j5 → − rail
+//   Button: across the gap in cols 12/15 (c12, c15, h12, h15); 5V → a12;
+//           pin 2 → j12; 10 kΩ pull-down i9–i12; j9 → − rail
+//   GND → the − rail once.
 const LOOPS: Layout = {
-  resistors: { resistorG: 1, resistorY: 6, resistorR: 11 },
-  leds: { ledGreen: 4, ledYellow: 9, ledRed: 14 },
+  parts: {
+    resistorG: at(1, 0),
+    ledGreen: at(4, 2),
+    resistorY: at(6, 0),
+    ledYellow: at(9, 2),
+    resistorR: at(1, 5),
+    ledRed: at(4, 7),
+  },
   wires: [
-    ['D5', top(1, 1)],
-    ['D6', top(6, 1)],
-    ['D7', top(11, 1)],
-    ['GND_T', top(5, 1)],
-    ['GND_P1', top(10, 1)],
-    ['GND_P2', top(15, 1)],
-  ] as [string, Hole][],
+    ['D5', at(1, 1)],
+    ['D6', at(6, 1)],
+    ['D7', at(1, 6)],
+    ['GND_T', RAIL(17)],
+  ],
+  links: [
+    [at(5, 4), RAIL(5)],
+    [at(10, 4), RAIL(10)],
+    [at(5, 9), RAIL(6)],
+  ],
 };
 
-// Full build: loops plus the button input on pin 2. The second GND_T wire
-// (the pull-down's return) stays — one pin can feed two strips in the sim.
 const GOOD: Layout = {
-  ...LOOPS,
-  button: 9,
-  resistor10k: 13,
-  wires: [...(LOOPS.wires as [string, Hole][]), ['5V', top(9)], ['D2', bottom(9)], ['D2', bottom(13)], ['GND_T', bottom(16)]] as [string, Hole][],
+  parts: { ...LOOPS.parts, button: at(12, 2), resistor10k: at(9, 8) },
+  wires: [...LOOPS.wires!, ['5V', at(12, 0)], ['D2', at(12, 9)]],
+  links: [...LOOPS.links!, [at(9, 9), RAIL(9)]],
 };
+
+const withWires = (layout: Layout, change: (wires: [string, Hole][]) => [string, Hole][]): Layout => ({
+  ...layout,
+  wires: change(layout.wires!),
+});
 
 describe('Lab 03 verdicts', () => {
-  it('passes the textbook circuit', () => {
+  it('passes the textbook circuit, grounded through the − rail', () => {
     expect(verdict(GOOD).code).toBe('pass');
   });
 
-  it('grounds loops through the − rail too', () => {
-    const v = verdict({
-      resistors: { resistorG: 1, resistorY: 6, resistorR: 11 },
-      leds: { ledGreen: 4, ledYellow: 9, ledRed: 14 },
-      button: 9,
-      resistor10k: 13,
-      wires: [
-        ['D5', top(1, 1)],
-        ['D6', top(6, 1)],
-        ['D7', top(11, 1)],
-        ['GND_T', rail(1)],
-        // LED − legs reach the rail through one jumper per LED column.
-        ['GND_P1', top(5, 1)],
-        ['GND_P2', top(10, 1)],
-        ['D13', top(15, 1)], // hmm, pin 13 is digital — see note below
-        ['5V', top(9)],
-        ['D2', bottom(9)],
-        ['D2', bottom(13)],
-        ['GND_P1', bottom(16)],
-      ],
-    });
-    // The exact code depends on how the rail is used; what matters is no crash.
-    expect(typeof v.code).toBe('string');
+  it('names the color when an LED is on a pin the sketch never drives', () => {
+    const v = verdict(withWires(GOOD, (w) => w.map(([pin, hole]) => [pin === 'D5' ? 'D4' : pin, hole])));
+    expect(v.code).toBe('ledLoops');
+    expect(v.title).toBe('The green LED’s signal jumper is on pin 4');
   });
 
-  it('names the color when an LED is on the wrong pin', () => {
-    // Green loop wired to pin 4 (a pin the sketch never drives).
-    const v = verdict({
-      ...GOOD,
-      wires: (GOOD.wires as [string, Hole][]).map(([pin, hole]) =>
-        pin === 'D5' && hole.col === 0 ? (['D4', hole] as [string, Hole]) : ([pin, hole] as [string, Hole]),
-      ),
-    });
+  it('explains when two colors are swapped', () => {
+    // Green loop on pin 6, yellow loop on pin 5.
+    const v = verdict(
+      withWires(GOOD, (w) => w.map(([pin, hole]) => [pin === 'D5' ? 'D6' : pin === 'D6' ? 'D5' : pin, hole])),
+    );
     expect(v.code).toBe('ledLoops');
-    expect(v.title).toContain('green');
+    expect(v.title).toBe('The green LED is on pin 6');
+  });
+
+  it('spots a backwards LED by color, as soon as it happens', () => {
+    expect(verdict({ ...GOOD, flipped: ['ledRed'] }).title).toBe('The red LED is in backwards');
+    expect(LAB03.verdict.mistakes).toContain('ledLoops');
   });
 
   it('warns when one resistor serves two LEDs', () => {
-    // resistorG spans cols 1–4; both green (cols 4–5) and yellow (cols 4–5)
-    // share its right leg.
-    const v = verdict({
-      ...GOOD,
-      leds: { ledGreen: 4, ledYellow: 4, ledRed: 14 },
-      resistors: { resistorG: 1, resistorY: undefined, resistorR: 11 },
-    });
+    // Yellow LED moved so its + leg shares the green resistor's column (a4).
+    const v = verdict({ ...GOOD, parts: { ...GOOD.parts, ledYellow: at(4, 3), resistorY: undefined } });
     expect(v.code).toBe('sharedResistor');
   });
 
   it('reports a burned-out LED by color', () => {
-    const b = bench(GOOD);
-    const v = judge(LAB03, { ...b, burnt: ['ledYellow'] });
+    const v = judge(LAB03, { ...bench(GOOD), burnt: ['ledYellow'] });
     expect(v.code).toBe('burnt');
-    expect(v.title).toContain('yellow');
+    expect(v.title).toBe('The yellow LED is burned out');
   });
 
   it('spots a floating button input', () => {
-    const { resistor10k, ...rest } = GOOD;
-    const v = verdict({ ...rest, wires: (GOOD.wires as [string, Hole][]).filter(([pin], i) => !(pin === 'D2' && i > 6)) });
-    expect(['floating', 'missingParts']).toContain(v.code);
+    const { resistor10k: _, ...parts } = GOOD.parts!;
+    expect(verdict({ ...GOOD, parts }).code).toBe('floating');
+  });
+
+  it('catches a button that can never take pin 2 HIGH', () => {
+    // 5V lands in a column the button doesn't reach.
+    const v = verdict(withWires(GOOD, (w) => w.map(([pin, hole]) => [pin, pin === '5V' ? at(16, 0) : hole])));
+    expect(v.code).toBe('buttonOpen');
   });
 
   it('lists missing parts first', () => {
@@ -138,38 +141,69 @@ describe('Lab 03 verdicts', () => {
 });
 
 describe('Lab 03 state machine', () => {
-  const build = (layout: Layout): RuntimeState => {
-    const base = createLabStore(LAB03).state;
-    const b = bench(layout);
-    return { ...base, ...b, parts: { ...base.parts, ...b.parts }, running: true };
-  };
+  const build = (layout: Layout): RuntimeState => ({ ...createLabStore(LAB03).state, ...bench(layout) });
+  const step = (state: RuntimeState, ...actions: Parameters<typeof runtimeReducer>[2][]) =>
+    actions.reduce((s, a) => runtimeReducer(LAB03, s, a), state);
+  const press = { type: 'pressPart', part: 'button', pressed: true } as const;
+  const release = { type: 'pressPart', part: 'button', pressed: false } as const;
+  const tick = { type: 'tick' } as const;
+  const lit = (state: RuntimeState) =>
+    Object.entries(ledGlowFor(LAB03, state))
+      .filter(([, glow]) => glow !== 'off')
+      .map(([id]) => id);
 
   it('steps RUN → WARN → STOP → RUN, one step per press', () => {
-    let state = build(GOOD);
-    state = runtimeReducer(LAB03, state, { type: 'tick' });
-    expect(state.behavior.stage).toBe(0);
-    expect(state.behavior.lit).toEqual(['ledGreen']);
+    let state = step(build(GOOD), { type: 'uploadDone' }, tick);
+    expect(lit(state)).toEqual(['ledGreen']);
 
-    // A press is an edge: held down still counts once.
-    state = runtimeReducer(LAB03, state, { type: 'pressPart', part: 'button', pressed: true });
-    state = runtimeReducer(LAB03, state, { type: 'tick' });
-    expect(state.behavior.stage).toBe(1);
-    expect(state.behavior.lit).toEqual(['ledYellow']);
+    // A press is an edge: holding it through many loops still counts once.
+    state = step(state, press, tick, tick, tick);
+    expect(lit(state)).toEqual(['ledYellow']);
 
-    state = runtimeReducer(LAB03, state, { type: 'pressPart', part: 'button', pressed: false });
-    state = runtimeReducer(LAB03, state, { type: 'pressPart', part: 'button', pressed: true });
-    expect(state.behavior.stage).toBe(2);
-    expect(state.behavior.lit).toEqual(['ledRed']);
+    state = step(state, release, press);
+    expect(lit(state)).toEqual(['ledRed']);
 
-    state = runtimeReducer(LAB03, state, { type: 'pressPart', part: 'button', pressed: false });
-    state = runtimeReducer(LAB03, state, { type: 'pressPart', part: 'button', pressed: true });
-    expect(state.behavior.stage).toBe(0);
-    expect(state.behavior.lit).toEqual(['ledGreen']);
+    state = step(state, release, press);
+    expect(lit(state)).toEqual(['ledGreen']);
+  });
+
+  it('does not step when the button isn’t wired to pin 2', () => {
+    const broken = withWires(GOOD, (w) => w.map(([pin, hole]) => [pin, pin === '5V' ? at(16, 0) : hole]));
+    const state = step(build(broken), { type: 'uploadDone' }, press, tick, release, press);
+    expect(lit(state)).toEqual(['ledGreen']);
+  });
+
+  it('steps by itself when pin 2 floats, and says why once', () => {
+    const { resistor10k: _, ...parts } = GOOD.parts!;
+    const state = step(build({ ...GOOD, parts }), { type: 'uploadDone' }, ...Array(30).fill(tick));
+    expect(state.behavior.stage).not.toBe(undefined);
+    expect(state.log.filter((line) => line.text.startsWith('Pin 2 is floating'))).toHaveLength(1);
+  });
+
+  it('lights only the LEDs that are actually wired to their pins', () => {
+    // Red loop's pin 7 jumper removed: STOP drives pin 7, but nothing lights.
+    const noRed = withWires(GOOD, (w) => w.filter(([pin]) => pin !== 'D7'));
+    const state = step(build(noRed), { type: 'uploadDone' }, press, release, press);
+    expect(lit(state)).toEqual([]);
   });
 
   it('logs success on upload of the correct circuit', () => {
-    const state = runtimeReducer(LAB03, { ...createLabStore(LAB03).state, ...bench(GOOD) }, { type: 'uploadDone' });
-    expect(state.log.some((line) => line.kind === 'success')).toBe(true);
+    const state = step(build(GOOD), { type: 'uploadDone' });
+    expect(state.log.at(-1)).toEqual(
+      expect.objectContaining({ kind: 'success', text: 'The stack light steps RUN → WARN → STOP with each press. Lab 03 complete!' }),
+    );
+  });
+
+  it('burns an LED that has no resistor once its pin goes HIGH', () => {
+    // Green LED moved so it sits straight across pin 5 and the rail jumper.
+    const noResistor: Layout = {
+      ...GOOD,
+      parts: { ...GOOD.parts, resistorG: undefined, ledGreen: at(1, 2) },
+      links: [...GOOD.links!.slice(1), [at(2, 4), RAIL(2)]],
+    };
+    const state = step(build(noResistor), { type: 'uploadDone' });
+    expect(state.burnt).toContain('ledGreen');
+    expect(state.log.some((line) => line.text.startsWith('Pop! The green LED burned out'))).toBe(true);
   });
 });
 
@@ -180,11 +214,12 @@ describe('Lab 03 guide steps', () => {
     expect(done({})).toEqual([false, false, false, false, false]);
     expect(
       done({
-        resistors: { resistorG: 1 },
-        leds: { ledGreen: 4 },
-        wires: [['D5', top(1, 1)], ['GND_T', top(5, 1)]],
+        parts: { resistorG: at(1, 0), ledGreen: at(4, 2) },
+        wires: [['D5', at(1, 1)], ['GND_T', RAIL(17)]],
+        links: [[at(5, 4), RAIL(5)]],
       }),
     ).toEqual([true, false, false, false, false]);
+    expect(done(LOOPS)).toEqual([true, true, true, false, false]);
     expect(done(GOOD)).toEqual([true, true, true, true, false]);
     expect(done(GOOD, true)).toEqual([true, true, true, true, true]);
   });

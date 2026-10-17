@@ -2,8 +2,6 @@ import { memo } from 'react';
 import { G, Rect, Text } from 'react-native-svg';
 
 import { BB_SCALE, BREADBOARD, type CanvasLayout, PITCH, RAIL_BOTTOM_Y, RAIL_TOP_Y, ROW_LETTERS, type Point } from '../../lab/geometry';
-import type { LabDef } from '../../lab/lab';
-import { PART_DEFS } from '../../lab/parts';
 import { fonts } from '../../theme';
 
 const { cols, firstColX, rowY, width, height } = BREADBOARD;
@@ -64,7 +62,7 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
           <Text x={colX(col)} y={12} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
             {col + 1}
           </Text>
-          <Text x={colX(col)} y={135} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
+          <Text x={colX(col)} y={133.5} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
             {col + 1}
           </Text>
         </G>
@@ -86,15 +84,13 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
 /** Tray that holds parts that are not on the breadboard. */
 export const PartsBin = memo(function PartsBin({
   layout,
-  lab,
   slots,
 }: {
   layout: CanvasLayout;
-  lab: LabDef;
-  slots: Record<string, Point>;
+  /** One entry per bin slot: its label and where it sits. */
+  slots: { key: string; label: string; labelY: number; at: Point }[];
 }) {
   const { bin, binJumper } = layout;
-  const labelY = bin.y + bin.height - 22;
   return (
     <G>
       <Rect
@@ -112,23 +108,15 @@ export const PartsBin = memo(function PartsBin({
       <Text x={bin.x + 10} y={bin.y + 13} fontSize={6.5} fontWeight="700" fill="#5B7173" letterSpacing={1.2} fontFamily={fonts.svg}>
         PARTS BIN
       </Text>
-      {lab.parts.map((spec) => (
-        <Text
-          key={spec.id}
-          x={slots[spec.id]?.x ?? bin.x + 40}
-          y={labelY}
-          fontSize={6}
-          fill="#5B7173"
-          textAnchor="middle"
-          fontFamily={fonts.svg}
-        >
-          {spec.name ?? PART_DEFS[spec.def].name}
+      {slots.map((slot) => (
+        <Text key={slot.key} x={slot.at.x} y={slot.labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
+          {slot.label}
         </Text>
       ))}
-      <Text x={binJumper.x} y={labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
+      <Text x={binJumper.x} y={binJumper.y + 24} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
         Jumper wires
       </Text>
-      <Text x={bin.x + 10} y={bin.y + bin.height - 8} fontSize={5.6} fill="#7F8C8D" fontFamily={fonts.svg}>
+      <Text x={bin.x + 10} y={bin.y + bin.height - 7} fontSize={5.6} fill="#7F8C8D" fontFamily={fonts.svg}>
         Drag a part onto the breadboard · tap any part to learn what it is
       </Text>
     </G>

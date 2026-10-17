@@ -3,9 +3,21 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { analyzeCircuit, toBoard } from '../circuit';
 import type { Hole } from '../geometry';
-import { type LabAction, type LabState, createLab, labReducer } from '../state';
+import { LAB01 } from '../labs/lab01';
+import {
+  type RuntimeAction as LabAction,
+  type RuntimeState as LabState,
+  createLabStore,
+  judge,
+  runtimeReducer,
+  toCircuitBoard,
+} from '../runtime';
+
+const createLab = () => createLabStore(LAB01).state;
+const labReducer = (state: LabState, action: LabAction) => runtimeReducer(LAB01, state, action);
+const analyzeCircuit = (state: LabState) => ({ verdict: judge(LAB01, state) });
+const toBoard = (state: LabState) => toCircuitBoard(LAB01, state);
 
 const top = (col: number, row = 0): Hole => ({ row, col: col - 1 });
 
@@ -35,7 +47,7 @@ describe('Output console', () => {
   });
 
   it('flags a backwards LED as soon as the loop closes, with a hint', () => {
-    const lab = run(...BUILD, { type: 'flipLed' });
+    const lab = run(...BUILD, { type: 'flipPart', part: 'led' });
     expect(texts(lab).slice(-3)).toEqual([
       'info: Flipped the LED: its + leg is now in c7.',
       'error: The LED is in backwards.',
@@ -44,7 +56,7 @@ describe('Output console', () => {
   });
 
   it('does not repeat the same mistake on later actions', () => {
-    const lab = run(...BUILD, { type: 'flipLed' }, { type: 'addWire', pin: 'D2', hole: top(14, 1) });
+    const lab = run(...BUILD, { type: 'flipPart', part: 'led' }, { type: 'addWire', pin: 'D2', hole: top(14, 1) });
     expect(lab.log.filter((line) => line.text === 'The LED is in backwards.')).toHaveLength(1);
   });
 
@@ -54,7 +66,7 @@ describe('Output console', () => {
       { type: 'addWire', pin: 'D7', hole: top(6, 1) },
       { type: 'addWire', pin: 'GND_T', hole: top(7, 1) },
     );
-    expect(lab.ledBurnt).toBe(false);
+    expect(lab.burnt.includes('led')).toBe(false);
     expect(texts(lab).at(-2)).toBe('error: No resistor in the loop.');
   });
 
@@ -64,7 +76,7 @@ describe('Output console', () => {
       { type: 'addWire', pin: '5V', hole: top(6, 1) },
       { type: 'addWire', pin: 'GND_T', hole: top(7, 1) },
     );
-    expect(lab.ledBurnt).toBe(true);
+    expect(lab.burnt.includes('led')).toBe(true);
     expect(texts(lab).slice(-2)).toEqual([
       expect.stringMatching(/^error: Pop! The LED burned out/),
       expect.stringMatching(/^hint: Hint: Drag the dead LED back/),

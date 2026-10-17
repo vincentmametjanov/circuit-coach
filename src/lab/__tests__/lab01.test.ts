@@ -3,9 +3,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type CircuitState, analyzeCircuit, labSteps } from '../circuit';
 import type { Hole } from '../geometry';
-import { createLab, labReducer } from '../state';
+import { LAB01 } from '../labs/lab01';
+import { type BenchState, type RuntimeState, createLabStore, judge, runtimeReducer, runtimeSteps } from '../runtime';
 
 /** A hole in the top half (rows a–e) of the given 1-based column. */
 const top = (col: number, row = 0): Hole => ({ row, col: col - 1 });
@@ -19,20 +19,21 @@ type Layout = {
 };
 
 /** Columns are 1-based like the breadboard labels. The resistor spans 3 columns, the LED 1. */
-function circuit({ resistor, led, flipped = false, burnt = false, wires = [] }: Layout): CircuitState {
+function circuit({ resistor, led, flipped = false, burnt = false, wires = [] }: Layout): BenchState {
   return {
     parts: {
       resistor: resistor === undefined ? null : top(resistor),
       led: led === undefined ? null : top(led, 2),
     },
-    ledFlipped: flipped,
-    ledBurnt: burnt,
+    flipped: flipped ? ['led'] : [],
+    burnt: burnt ? ['led'] : [],
+    pressed: [],
     // Wires land in row b so they never share a hole with a part leg.
     wires: wires.map(([pin, col], i) => ({ id: `w${i}`, pin, hole: top(col, 1) })),
   };
 }
 
-const verdict = (layout: Layout) => analyzeCircuit(circuit(layout)).verdict;
+const verdict = (layout: Layout) => judge(LAB01, circuit(layout));
 
 // The textbook build: pin 7 → resistor (cols 3–6) → LED + (6) → LED − (7) → GND.
 const GOOD: Layout = { resistor: 3, led: 6, wires: [['D7', 3], ['GND_T', 7]] };
@@ -159,7 +160,7 @@ describe('Lab 01 verdicts', () => {
 
 describe('Lab 01 guide steps', () => {
   const done = (layout: Layout, running = false) =>
-    labSteps(analyzeCircuit(circuit(layout)), running).map((step) => step.done);
+    runtimeSteps(LAB01, circuit(layout), running).map((step) => step.done);
 
   it('ticks off each step as the circuit comes together', () => {
     expect(done({})).toEqual([false, false, false, false, false]);
@@ -180,21 +181,19 @@ describe('Lab 01 guide steps', () => {
 });
 
 describe('Lab 01 simulation', () => {
-  const build = (layout: Layout) => {
-    const c = circuit(layout);
-    return { ...createLab(), ...c };
-  };
+  const build = (layout: Layout): RuntimeState => ({ ...createLabStore(LAB01).state, ...circuit(layout) });
+  const labReducer = (state: RuntimeState, action: Parameters<typeof runtimeReducer>[2]) => runtimeReducer(LAB01, state, action);
 
   it('burns out an LED wired to 5V with no resistor', () => {
     const lab = labReducer(build({ led: 6, wires: [['5V', 6]] }), { type: 'addWire', pin: 'GND_T', hole: top(7, 1) });
-    expect(lab.ledBurnt).toBe(true);
+    expect(lab.burnt.includes('led')).toBe(true);
     expect(lab.log.at(-2)?.text).toMatch(/^Pop!/);
   });
 
   it('only burns a pin 7 LED once the sketch drives the pin high', () => {
     const wired = labReducer(build({ led: 6, wires: [['D7', 6]] }), { type: 'addWire', pin: 'GND_T', hole: top(7, 1) });
-    expect(wired.ledBurnt).toBe(false);
-    expect(labReducer(wired, { type: 'uploadDone' }).ledBurnt).toBe(true);
+    expect(wired.burnt.includes('led')).toBe(false);
+    expect(labReducer(wired, { type: 'uploadDone' }).burnt.includes('led')).toBe(true);
   });
 
   it('reports success on upload of a correct circuit', () => {

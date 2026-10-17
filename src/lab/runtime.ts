@@ -4,7 +4,7 @@
 // src/lab/state.ts wraps this with its original action names; LabScreen uses
 // it directly for every lab.
 
-import { type Circuit, type CircuitBoard, type PlacedPart, type WireEnd, buildCircuit } from './engine/circuit';
+import { type Circuit, type CircuitBoard, type PlacedPart, type WireEnd, buildCircuit, pathThrough } from './engine/circuit';
 import type { LabDef, Message, StepQuery, VerdictSpec } from './lab';
 import { type Hole, PIN_BY_ID, holeName } from './geometry';
 import { PART_DEFS, partLegs } from './parts';
@@ -19,8 +19,18 @@ export type BenchState = {
   flipped: string[];
   burnt: string[];
   pressed: string[];
-  wires: { id: string; pin: string | null; hole: Hole | null }[];
+  /**
+   * Jumpers. A pin jumper runs from an Arduino pin (`pin`) to a breadboard hole
+   * (`hole`). A breadboard jumper has no pin and joins `hole` to `hole2`. An end
+   * that is still loose is null.
+   */
+  wires: BenchWire[];
 };
+
+export type BenchWire = { id: string; pin: string | null; hole: Hole | null; hole2?: Hole | null };
+
+/** True when both of a jumper's ends are plugged in. */
+export const isPlugged = (wire: BenchWire) => wire.hole !== null && (wire.pin !== null || !!wire.hole2);
 
 export type RuntimeState = BenchState & {
   running: boolean;
@@ -41,7 +51,7 @@ export type RuntimeAction =
   | { type: 'pressPart'; part: string; pressed: boolean }
   | { type: 'control'; id: string; value: number }
   | { type: 'addWire'; pin: string | null; hole: Hole | null }
-  | { type: 'moveWire'; id: string; pin?: string; hole?: Hole }
+  | { type: 'moveWire'; id: string; pin?: string; hole?: Hole; hole2?: Hole }
   | { type: 'removeWire'; id: string }
   | { type: 'mistake'; title: string; hint: string }
   | { type: 'clearLog' }
@@ -53,7 +63,8 @@ export type RuntimeAction =
   | { type: 'reset' };
 
 const MAX_LOG_LINES = 150;
-const BUILD_ACTIONS: RuntimeAction['type'][] = ['placePart', 'flipPart', 'pressPart', 'addWire', 'moveWire', 'removeWire'];
+// Pressing a button is using the circuit, not building it, so it never flags a wiring mistake.
+const BUILD_ACTIONS: RuntimeAction['type'][] = ['placePart', 'flipPart', 'addWire', 'moveWire', 'removeWire'];
 
 export function createRuntime(): RuntimeState {
   return {
@@ -109,7 +120,10 @@ export function toCircuitBoard(lab: LabDef, bench: BenchState): CircuitBoard {
   }
   return {
     parts,
-    wires: bench.wires.filter((w): w is WireEnd & { id: string } => w.pin !== null && w.hole !== null),
+    wires: bench.wires
+      .filter((w) => w.pin !== null && w.hole !== null)
+      .map((w) => ({ id: w.id, pin: w.pin!, hole: w.hole! }) satisfies WireEnd & { id: string }),
+    links: bench.wires.filter((w) => w.pin === null && w.hole && w.hole2).map((w) => [w.hole!, w.hole2!] as [Hole, Hole]),
     burnt: bench.burnt,
     pressed: bench.pressed,
   };
@@ -117,12 +131,73 @@ export function toCircuitBoard(lab: LabDef, bench: BenchState): CircuitBoard {
 
 export const circuitOf = (lab: LabDef, bench: BenchState): Circuit => buildCircuit(toCircuitBoard(lab, bench));
 
+/** The circuit with every button released: verdicts and guide steps judge the wiring, not a press in progress. */
+export const restingCircuit = (lab: LabDef, bench: BenchState): Circuit =>
+  bench.pressed.length === 0 ? circuitOf(lab, bench) : circuitOf(lab, { ...bench, pressed: [] });
+
+// ---- what the running circuit does --------------------------------------------
+
+/** Supplies that are live whenever a jumper reaches them, sketch or no sketch. */
+const LIVE_SUPPLIES = ['5V', '3V3', 'VIN'];
+
+/** Board nodes at a HIGH voltage right now: wired supplies, plus the pins the running sketch drives HIGH. */
+export function drivenHigh(lab: LabDef, state: RuntimeState, circuit: Circuit): string[] {
+  const outputs = state.running ? (lab.behavior.outputs?.(lab, { lab, state }) ?? []) : [];
+  return [...LIVE_SUPPLIES.filter((node) => circuit.wired(node)), ...outputs.filter((node) => circuit.wired(node))];
+}
+
+export type Glow = 'off' | 'dim' | 'on';
+
+const resistorIds = (lab: LabDef) => lab.parts.filter((p) => p.def === 'resistor' || p.def === 'resistor10k');
+
+/**
+ * How brightly each LED glows: lit when current can flow from a HIGH node
+ * through a resistor and the LED (+ to −) to GND. Dim from 3.3V or through
+ * the 10 kΩ resistor.
+ */
+export function ledGlowFor(lab: LabDef, state: RuntimeState, circuit = circuitOf(lab, state)): Record<string, Glow> {
+  const high = drivenHigh(lab, state, circuit);
+  const glow: Record<string, Glow> = {};
+  for (const led of lab.parts.filter((p) => p.def === 'led')) {
+    glow[led.id] = 'off';
+    if (state.burnt.includes(led.id) || !circuit.part(led.id)) continue;
+    for (const node of high) {
+      for (const resistor of resistorIds(lab)) {
+        if (!pathThrough(circuit, node, 'GND', [resistor.id, led.id])) continue;
+        const level: Glow = node === '3V3' || resistor.def === 'resistor10k' ? 'dim' : 'on';
+        if (level === 'on' || glow[led.id] === 'off') glow[led.id] = level;
+      }
+    }
+  }
+  return glow;
+}
+
+/** An LED with a HIGH node straight across it (no resistor) burns out. Every lab gets this physics. */
+function burnOut(lab: LabDef, state: RuntimeState): { state: RuntimeState; lines: LabLog } | null {
+  const circuit = circuitOf(lab, state);
+  const high = drivenHigh(lab, state, circuit);
+  for (const led of lab.parts.filter((p) => p.def === 'led')) {
+    if (state.burnt.includes(led.id) || !circuit.part(led.id)) continue;
+    if (!high.some((node) => pathThrough(circuit, node, 'GND', [led.id]))) continue;
+    const name = led.color ? `${led.color} LED` : 'LED';
+    const resistor = led.color ? 'its own 220 Ω resistor' : 'the 220 Ω resistor';
+    return {
+      state: { ...state, burnt: [...state.burnt, led.id] },
+      lines: [
+        ['error', `Pop! The ${name} burned out: with no resistor in the loop, nothing limited the current.`],
+        ['hint', `Hint: Drag the dead ${name} back to the parts bin for a fresh one, then put ${resistor} in series with it.`],
+      ],
+    };
+  }
+  return null;
+}
+
 // ---- verdicts ---------------------------------------------------------------
 
 export type Verdict = Message & { code: string; source?: string };
 
 export function judge(lab: LabDef, bench: BenchState, circuit?: Circuit): Verdict {
-  const c = circuit ?? circuitOf(lab, bench);
+  const c = circuit ?? restingCircuit(lab, bench);
   for (const code of lab.verdict.order) {
     const message = lab.verdict.check(code, c, lab);
     if (message) {
@@ -142,7 +217,7 @@ export function isMistake(spec: VerdictSpec, verdict: Verdict): boolean {
 
 export type RuntimeStep = { id: string; title: string; detail: string; done: boolean };
 
-export function runtimeSteps(lab: LabDef, bench: BenchState, running: boolean, circuit = circuitOf(lab, bench), pass?: boolean): RuntimeStep[] {
+export function runtimeSteps(lab: LabDef, bench: BenchState, running: boolean, circuit = restingCircuit(lab, bench), pass?: boolean): RuntimeStep[] {
   const isPass = pass ?? judge(lab, bench, circuit).code === 'pass';
   const query: StepQuery = { ...circuit, pass: isPass, running };
   return lab.steps.map(({ id, title, detail, built }) => ({
@@ -170,13 +245,15 @@ function describePlacement(lab: LabDef, bench: BenchState, part: string, start: 
     const minus = holes[flipped ? 0 : 1];
     return `Placed the ${partName(lab, part)}: + leg in ${holeName(plus)}, − leg in ${holeName(minus)}.`;
   }
-  if (holes.length > 2) {
+  if (def.pattern.kind === 'across') {
     return `Placed the ${partName(lab, part)} across the gap: legs in ${holes.map(holeName).join(', ')}.`;
   }
+  if (holes.length > 2) return `Placed the ${partName(lab, part)}: legs in ${holes.map(holeName).join(', ')}.`;
   return `Placed the ${partName(lab, part)} in ${holeName(holes[0])} and ${holeName(holes[1])}.`;
 }
 
-function describeWire(wire: { pin: string | null; hole: Hole | null }): string {
+function describeWire(wire: BenchWire): string {
+  if (!wire.pin && wire.hole && wire.hole2) return `Connected ${holeName(wire.hole)} to ${holeName(wire.hole2)} with a jumper.`;
   const pin = wire.pin ? PIN_BY_ID[wire.pin].name : 'a loose end';
   if (wire.pin && wire.hole) return `Connected ${pin} to ${holeName(wire.hole)} with a jumper.`;
   if (wire.pin) return `Plugged a jumper into ${pin}. Its other end is loose.`;
@@ -205,6 +282,8 @@ export function runtimeReducer(lab: LabDef, state: RuntimeState, action: Runtime
     store.state = next;
     next = lab.behavior.onUpload(lab, store).state;
   }
+  const burnt = burnOut(lab, next);
+  if (burnt) next = appendLog(burnt.state, ...burnt.lines);
   if (lab.physics) {
     store.state = next;
     const lines = lab.physics(lab, store);
@@ -284,18 +363,24 @@ function update(lab: LabDef, state: RuntimeState, action: RuntimeAction): Runtim
     case 'moveWire': {
       const before = state.wires.find((wire) => wire.id === action.id);
       if (!before) return state;
-      const moved = { ...before, pin: action.pin ?? before.pin, hole: action.hole ?? before.hole };
+      const moved: BenchWire = {
+        ...before,
+        pin: action.pin ?? before.pin,
+        hole: action.hole ?? before.hole,
+        hole2: action.hole2 ?? before.hole2 ?? null,
+      };
       const wires = state.wires.map((wire) => (wire.id === action.id ? moved : wire));
-      const completed = (!before.pin || !before.hole) && moved.pin && moved.hole;
+      const completed = !isPlugged(before) && isPlugged(moved);
+      const end = (w: BenchWire) => (w.pin ? PIN_BY_ID[w.pin].name : w.hole2 ? holeName(w.hole2) : 'a loose end');
       const text = completed
         ? describeWire(moved)
-        : `Moved the jumper: ${moved.pin ? PIN_BY_ID[moved.pin].name : 'a loose end'} → ${moved.hole ? holeName(moved.hole) : 'a loose end'}.`;
+        : `Moved the jumper: ${end(moved)} → ${moved.hole ? holeName(moved.hole) : 'a loose end'}.`;
       return appendLog({ ...state, wires }, ['info', text]);
     }
     case 'removeWire': {
       const removed = state.wires.find((wire) => wire.id === action.id);
       if (!removed) return state;
-      const which = removed.pin ? `the ${PIN_BY_ID[removed.pin].name} jumper` : 'a jumper';
+      const which = removed.pin ? `the ${PIN_BY_ID[removed.pin].name} jumper` : 'a breadboard jumper';
       return appendLog({ ...state, wires: state.wires.filter((wire) => wire.id !== action.id) }, [
         'info',
         `Removed ${which}.`,

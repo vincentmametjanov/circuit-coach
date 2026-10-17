@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { LogKind, LogLine } from '../../lab/state';
+import type { LogKind, LogLine } from '../../lab/runtime';
 import { colors, fonts } from '../../theme';
 import { Icon } from './Icons';
 

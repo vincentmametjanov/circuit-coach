@@ -88,7 +88,7 @@ export const HOLE_PITCH = PITCH * BB_SCALE;
 
 export const BREADBOARD = {
   width: 200,
-  height: 140,
+  height: 148,
   cols: 17,
   firstColX: 20,
   rowY: [22, 32, 42, 52, 62, 82, 92, 102, 112, 122],
@@ -117,38 +117,6 @@ export const stripName = (hole: Hole) =>
   hole.row === RAIL_TOP ? 'the + rail' : hole.row === RAIL_BOTTOM ? 'the − rail' : `column ${hole.col + 1} (rows ${hole.row < 5 ? 'a–e' : 'f–j'})`;
 
 // ---------------------------------------------------------------------------
-// Parts. Resistors and LEDs lie flat along a breadboard row; the button
-// straddles the center gap. Leg geometry lives in the catalog (parts.ts);
-// these tables stay for the workbench layout code.
-
-export type PartId = 'resistor' | 'led' | 'resistor10k' | 'button' | 'pot';
-
-/** Column distance between the outermost legs. */
-export const PART_SPAN: Record<PartId, number> = { resistor: 3, led: 1, resistor10k: 3, button: 3, pot: 4 };
-
-export const PART_NAME: Record<PartId, string> = {
-  resistor: '220 Ω resistor',
-  led: 'LED',
-  resistor10k: '10 kΩ resistor',
-  button: 'pushbutton',
-  pot: 'potentiometer',
-};
-
-/** Touch box around a part (canvas units), relative to the midpoint between its legs. */
-export const PART_BOX: Record<PartId, { left: number; right: number; top: number; bottom: number }> = {
-  resistor: { left: -27, right: 27, top: -11, bottom: 11 },
-  led: { left: -17, right: 17, top: -32, bottom: 8 },
-  resistor10k: { left: -27, right: 27, top: -11, bottom: 11 },
-  button: { left: -30, right: 30, top: -16, bottom: 26 },
-  pot: { left: -26, right: 26, top: -24, bottom: 10 },
-};
-
-/** The two outermost leg holes of a part whose first leg is `left`. */
-export function leadHoles(part: PartId, left: Hole): [Hole, Hole] {
-  return [left, { row: left.row, col: left.col + PART_SPAN[part] }];
-}
-
-// ---------------------------------------------------------------------------
 // Canvas layouts: side by side on wide screens, stacked on phones.
 
 export type CanvasLayout = {
@@ -158,7 +126,6 @@ export type CanvasLayout = {
   board: Point;
   breadboard: Point;
   bin: { x: number; y: number; width: number; height: number };
-  binSlots: Record<string, Point>;
   /** Where the stack of jumper wires sits in the bin. */
   binJumper: Point;
 };
@@ -173,7 +140,6 @@ export const LANDSCAPE: CanvasLayout = {
   board: { x: 40, y: 90 },
   breadboard: { x: 340, y: 18 },
   bin: { x: 340, y: 228, width: 280, height: 96 },
-  binSlots: { resistor: { x: 398, y: 274 }, led: { x: 480, y: 280 } },
   binJumper: { x: 564, y: 274 },
 };
 
@@ -184,18 +150,19 @@ export const PORTRAIT: CanvasLayout = {
   width: 300,
   height: 562,
   bin: { x: 14, y: 8, width: 272, height: 88 },
-  binSlots: { resistor: { x: 70, y: 44 }, led: { x: 150, y: 50 } },
   binJumper: { x: 232, y: 44 },
   breadboard: { x: 10, y: 108 },
   board: { x: 26, y: 342 },
 };
 
-export function fitCanvas(width: number, height: number | null) {
+export function fitCanvas(width: number, height: number | null, binRows: 1 | 2 = 1) {
+  const wide = withBinRows(LANDSCAPE, binRows);
+  const tall = withBinRows(PORTRAIT, binRows);
   if (height === null) {
-    const layout = width >= 600 ? LANDSCAPE : PORTRAIT;
+    const layout = width >= 600 ? wide : tall;
     return { layout, scale: width / layout.width };
   }
-  const [landscape, portrait] = [LANDSCAPE, PORTRAIT].map((layout) => ({
+  const [landscape, portrait] = [wide, tall].map((layout) => ({
     layout,
     scale: Math.min(width / layout.width, height / layout.height, 2.6),
   }));
@@ -216,29 +183,56 @@ export function holePoint(layout: CanvasLayout, hole: Hole): Point {
 
 /** Rail rows sit just outside the a–j grid, in breadboard units. */
 export const RAIL_TOP_Y = 4;
-export const RAIL_BOTTOM_Y = 134;
+export const RAIL_BOTTOM_Y = 142;
 
-/** Midpoint between a placed part's legs. */
-export function partCenter(layout: CanvasLayout, part: PartId, left: Hole): Point {
-  const p = holePoint(layout, left);
-  return { x: p.x + (PART_SPAN[part] * HOLE_PITCH) / 2, y: p.y };
-}
+
+/** Extra height a second row of parts adds to the bin. */
+export const BIN_ROW_HEIGHT = 52;
 
 /**
- * Where each part sits in the bin: spread evenly between the bin's left edge
- * and the jumper bundle, in the lab's parts-list order.
+ * The layout with room for `rows` rows of parts in the bin. A second row makes
+ * the bin taller: on wide screens the canvas grows downward; on phones the
+ * breadboard and board move down below the taller bin.
  */
-export function binSlotsFor(layout: CanvasLayout, ids: string[]): Record<string, Point> {
+export function withBinRows(base: CanvasLayout, rows: 1 | 2): CanvasLayout {
+  if (rows === 1) return base;
+  const extra = BIN_ROW_HEIGHT;
+  const bin = { ...base.bin, height: base.bin.height + extra };
+  const firstRowY = bin.y + 34;
+  if (base.id === 'landscape') {
+    return { ...base, height: base.height + extra, bin, binJumper: { x: base.binJumper.x, y: firstRowY } };
+  }
+  return {
+    ...base,
+    height: base.height + extra,
+    bin,
+    binJumper: { x: base.binJumper.x, y: firstRowY },
+    breadboard: { x: base.breadboard.x, y: base.breadboard.y + extra },
+    board: { x: base.board.x, y: base.board.y + extra },
+  };
+}
+
+/** Where one bin slot's part sits, and where its label goes. */
+export type BinSlotPoint = { at: Point; labelY: number };
+
+/**
+ * Bin slots spread evenly between the bin's left edge and the jumper bundle,
+ * in one row, or two rows when there are more than four.
+ */
+export function binSlotPoints(layout: CanvasLayout, count: number): BinSlotPoint[] {
   const { bin, binJumper } = layout;
-  const left = bin.x + 46;
-  const right = binJumper.x - 44;
-  const y = bin.y + bin.height / 2 - 4;
-  const slots: Record<string, Point> = {};
-  ids.forEach((id, index) => {
-    const x = ids.length === 1 ? (left + right) / 2 : left + ((right - left) * index) / (ids.length - 1);
-    slots[id] = { x, y };
+  const rows = count > 4 ? 2 : 1;
+  const perRow = Math.ceil(count / rows);
+  const left = bin.x + 42;
+  const right = binJumper.x - 46;
+  const rowY = rows === 1 ? [bin.y + bin.height / 2 - 4] : [bin.y + 34, bin.y + 34 + BIN_ROW_HEIGHT];
+  return Array.from({ length: count }, (_, index) => {
+    const row = Math.floor(index / perRow);
+    const inRow = row === rows - 1 ? count - perRow * (rows - 1) : perRow;
+    const i = index - row * perRow;
+    const x = inRow === 1 ? (left + right) / 2 : left + ((right - left) * i) / (perRow - 1);
+    return { at: { x, y: rowY[row] }, labelY: rowY[row] + 24 };
   });
-  return slots;
 }
 
 export function nearestHole(layout: CanvasLayout, p: Point, maxDistance = HOLE_PITCH * 0.85): Hole | null {

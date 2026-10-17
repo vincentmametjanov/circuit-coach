@@ -3,11 +3,11 @@
 // runs, holding the button lights the LED; a floating pin 2 flickers at
 // random — the exact reason real machines never leave an input floating.
 
+import { type Circuit, buildCircuit, pathThrough } from '../engine/circuit';
 import { type LedLoop, findLoop, findShort, ledLoopMessages } from '../engine/ledLoop';
 import { PIN_BY_ID } from '../geometry';
 import type { LabDef } from '../lab';
-import { appendLog, circuitOf, nextRandom } from '../runtime';
-import { LAB01 } from './lab01v2';
+import { type LabStore, type RuntimeState, appendLog, circuitOf, nextRandom } from '../runtime';
 
 const LOOP: LedLoop = { signal: { node: 'D7', name: 'pin 7' }, led: 'led', resistor: 'resistor' };
 const INPUT: LedLoop['signal'] = { node: 'D2', name: 'pin 2' };
@@ -31,37 +31,70 @@ void loop() {
   }
 }`;
 
-/** The two legs of the button on the pin-2 side and the 5V side. */
-function buttonSides(c: Parameters<typeof findLoop>[0]) {
-  const nets = c.legNets('button');
-  if (!nets) return null;
-  // internalLinks join legs 0–1 (one side) and 2–3 (the other side).
-  return { sideA: c.net(`part:button:0`), sideB: c.net(`part:button:2`) };
+/** The nets of the button's two sides (legs 0–1 are joined inside, and legs 2–3). */
+function buttonSides(c: Circuit) {
+  if (!c.part('button')) return null;
+  return { sideA: c.net('part:button:0'), sideB: c.net('part:button:2') };
 }
 
 /**
- * pin 2's net: HIGH (button pressed to 5V), LOW (held down by the 10 kΩ
- * pull-down), floating (wired but nothing settles it), or disconnected.
+ * What pin 2 reads with the button as it is now: HIGH when its net reaches 5V
+ * (through the pressed button, or wired straight to it), LOW when a resistor
+ * or jumper holds it at GND, and floating when nothing settles it.
  */
-export function inputState(c: Parameters<typeof findLoop>[0]): 'high' | 'low' | 'floating' | 'disconnected' {
+export function inputState(c: Circuit): 'high' | 'low' | 'floating' | 'disconnected' {
   if (!c.wired(INPUT.node)) return 'disconnected';
   const pin = c.net(INPUT.node);
-  const sides = buttonSides(c);
-  if (sides) {
-    const buttonNet = sides.sideA === pin || sides.sideB === pin ? (sides.sideA === pin ? sides.sideB : sides.sideA) : null;
-    const pressed = c.board.pressed.includes('button') || sides.sideA === sides.sideB;
-    if (buttonNet && pressed && c.wired('5V') && buttonNet === c.net('5V')) return 'high';
-  }
-  // Any resistor bridging pin 2 to GND holds it LOW — the 10 kΩ is the right
+  if (c.wired('5V') && pin === c.net('5V')) return 'high';
+  if (c.wired('GND') && pin === c.net('GND')) return 'low';
+  // Any resistor bridging pin 2 to GND holds it LOW. The 10 kΩ is the right
   // one; a 220 Ω doing the same job is reported separately as wasteful.
   for (const id of ['resistor10k', 'resistor']) {
     const pull = c.legNets(id);
-    if (pull && pull.includes(pin) && pull.includes(c.net('GND'))) return 'low';
+    if (c.wired('GND') && pull && pull.includes(pin) && pull.includes(c.net('GND'))) return 'low';
   }
   return 'floating';
 }
 
-// Lab 01's burn-out physics apply unchanged: the LED loop is identical.
+/** The same circuit with the button held down. */
+export function withButtonPressed(c: Circuit): Circuit {
+  return c.board.pressed.includes('button') ? c : buildCircuit({ ...c.board, pressed: [...c.board.pressed, 'button'] });
+}
+
+/** True when pressing the button really takes pin 2 HIGH: 5V on one side, pin 2 on the other. */
+export function buttonWorks(c: Circuit): boolean {
+  return inputState(withButtonPressed(c)) === 'high';
+}
+
+/**
+ * What the sketch's digitalRead(2) returns this instant. A floating pin picks
+ * up noise and returns a random value; the runtime's seeded random keeps
+ * tests repeatable.
+ */
+export function readInput(c: Circuit, store: LabStore): { value: boolean; floating: boolean; seed: number } {
+  const input = inputState(c);
+  if (input === 'high') return { value: true, floating: false, seed: store.state.seed };
+  if (input === 'low') return { value: false, floating: false, seed: store.state.seed };
+  const { seed, value } = nextRandom(store.state.seed);
+  return { value: value > 0.5, floating: true, seed };
+}
+
+const FLOAT_WARNING: [ 'warn' | 'hint', string ][] = [
+  ['warn', 'Pin 2 is floating: the reading jumps between HIGH and LOW on its own.'],
+  ['hint', 'Hint: An input with nothing pulling it LOW picks up electrical noise. Wire the 10 kΩ resistor from pin 2’s column to GND.'],
+];
+
+/** Runs Lab 02's loop() once: read pin 2, drive pin 7 to match. */
+function runLoop(lab: LabDef, store: LabStore): LabStore {
+  const { state } = store;
+  const reading = readInput(circuitOf(lab, state), store);
+  let next: RuntimeState = { ...state, seed: reading.seed, behavior: { ...state.behavior, d7: reading.value } };
+  if (reading.floating && !state.behavior.floatWarned) {
+    next = appendLog({ ...next, behavior: { ...next.behavior, floatWarned: true } }, ...FLOAT_WARNING);
+  }
+  return { lab, state: next };
+}
+
 export const LAB02: LabDef = {
   id: 'lab02',
   title: 'Lab 02 · Start button',
@@ -74,17 +107,21 @@ export const LAB02: LabDef = {
   ],
 
   verdict: {
-    mistakes: ['short', 'reversed', 'noResistor', 'alwaysOn', 'ledShorted', 'wrongPin', 'buttonShort', 'alwaysPressed', 'floating', 'buttonWrongPin', 'weakPullDown'],
+    // A floating pin 2 is not flagged mid-build (the pull-down may simply not be wired yet); Verify and
+    // Upload report it, and the running sketch shows the flicker.
+    mistakes: ['short', 'buttonShort', 'ledLoop', 'dimLed', 'alwaysPressed', 'buttonWrongPin', 'weakPullDown'],
     order: [
       'short',
       'buttonShort',
       'burnt',
       'ledLoop',
+      'dimLed',
       'pass',
       'alwaysPressed',
       'floating',
       'buttonWrongPin',
       'weakPullDown',
+      'buttonOpen',
       'missingParts',
       'open',
     ],
@@ -127,8 +164,7 @@ export const LAB02: LabDef = {
         case 'pass': {
           const loop = findLoop(c, LOOP);
           if (loop?.kind !== 'ok' || loop.source.node !== LOOP.signal.node) return null;
-          const input = inputState(c);
-          if (input !== 'low') return null;
+          if (inputState(c) !== 'low' || !buttonWorks(c)) return null;
           if (usesWeakPullDown(c)) return null;
           if (straySignalWire(c)) return null;
           return {
@@ -157,6 +193,15 @@ export const LAB02: LabDef = {
           if (loop.kind === 'noResistor') return { ...say.noLimiter(loop.source), source: loop.source.node };
           return { ...say.reversed(loop.source), source: loop.source.node };
         }
+        // The 10 kΩ ended up in the LED's loop: it lights, but only just.
+        case 'dimLed':
+          return c.wired(LOOP.signal.node) && pathThrough(c, LOOP.signal.node, 'GND', ['resistor10k', LOOP.led])
+            ? {
+                title: 'The LED’s loop uses the 10 kΩ resistor',
+                detail:
+                  'Only about 0.3 mA gets through 10 kΩ, so the LED barely glows. Put the 220 Ω resistor in the LED’s loop and use the 10 kΩ as the pull-down on pin 2.',
+              }
+            : null;
         // pin 2 reads “always pressed”: either 5V's net is wired straight to a
         // digital pin, or both sides of the button share one net tied to 5V.
         case 'alwaysPressed': {
@@ -185,13 +230,22 @@ export const LAB02: LabDef = {
               'Nothing holds pin 2 at LOW while the button is up, so it drifts between readings — a real machine can start by itself this way. Add the 10 kΩ pull-down from pin 2’s column to GND.',
           };
         }
+        // The button's far side is jumpered to some other input pin instead of pin 2.
         case 'buttonWrongPin': {
           const sides = buttonSides(c);
-          if (!sides || c.wired(INPUT.node)) return null;
-          if (sides.sideA !== c.net('5V') && sides.sideB !== c.net('5V')) return null;
+          if (!sides || c.wired(INPUT.node) || !c.wired('5V')) return null;
+          const fiveV = c.net('5V');
+          if (sides.sideA !== fiveV && sides.sideB !== fiveV) return null;
+          const far = sides.sideA === fiveV ? sides.sideB : sides.sideA;
+          const wire = c.board.wires.find((w) => {
+            const pin = PIN_BY_ID[w.pin];
+            return (pin.kind === 'digital' || pin.kind === 'analog') && c.net(pin.node) === far;
+          });
+          if (!wire) return null;
+          const name = PIN_BY_ID[wire.pin].name;
           return {
-            title: 'The button doesn’t reach pin 2',
-            detail: 'One side of the button is on 5V; the other side must wire to pin 2 (const int BUTTON_PIN = 2). Check which pin that jumper is in.',
+            title: `The button is wired to ${name}, not pin 2`,
+            detail: `The sketch reads pin 2 (const int BUTTON_PIN = 2), so ${name} is never read. Drag that jumper’s header end over to pin 2.`,
           };
         }
         // A 220 Ω pull-down works but wastes 20× the current of a 10 kΩ one.
@@ -205,6 +259,15 @@ export const LAB02: LabDef = {
               }
             : null;
         }
+        // Everything is in place except the button's path from 5V to pin 2.
+        case 'buttonOpen':
+          return c.part('button') && inputState(c) === 'low' && !buttonWorks(c)
+            ? {
+                title: 'Pressing the button doesn’t reach pin 2',
+                detail:
+                  'Pin 2 reads LOW, but it would stay LOW when you press. Wire 5V to one side of the button and pin 2 to the other side, across the center gap.',
+              }
+            : null;
         case 'missingParts': {
           const catalog: [string, string][] = [
             ['resistor', 'The 220 Ω resistor is'],
@@ -231,42 +294,20 @@ export const LAB02: LabDef = {
     },
   },
 
-  physics: LAB01.physics,
-
   behavior: {
     tickMs: 250,
-    onTick(lab, store) {
-      const { state } = store;
-      const input = inputState(circuitOf(lab, state));
-      let ledOn = false;
-      if (input === 'high') ledOn = state.pressed.includes('button');
-      else if (input === 'floating') {
-        // A floating input drifts: the LED flickers at random.
-        const { seed, value } = nextRandom(state.seed);
-        ledOn = value > 0.5;
-        store.state = { ...state, seed };
-        if (!state.behavior.floatWarned) {
-          store.state = {
-            ...store.state,
-            behavior: { ...store.state.behavior, floatWarned: true },
-          };
-          return {
-            lab,
-            state: appendLog(
-              { ...store.state, behavior: { ...store.state.behavior, ledOn } },
-              ['warn', 'Pin 2 is floating: the LED flickers on its own.'],
-              ['hint', 'Hint: An input with nothing pulling it LOW picks up noise. Wire the 10 kΩ resistor from pin 2’s column to GND.'],
-            ),
-          };
-        }
-        return { lab, state: { ...store.state, behavior: { ...store.state.behavior, ledOn } } };
-      }
-      return { lab, state: { ...store.state, behavior: { ...store.state.behavior, ledOn } } };
+    // The upload report already explains a floating pin 2, so the first loop stays quiet.
+    onUpload(lab, store) {
+      const quiet = { ...store.state, behavior: { ...store.state.behavior, floatWarned: true } };
+      const ran = runLoop(lab, { lab, state: quiet }).state;
+      const input = inputState(circuitOf(lab, store.state));
+      return { lab, state: { ...ran, behavior: { ...ran.behavior, floatWarned: input !== 'high' && input !== 'low' } } };
     },
-    onPress(lab, store, part) {
-      // Pressing or releasing changes the reading immediately, not on the next tick.
-      return lab.behavior.onTick!(lab, store);
-    },
+    onTick: runLoop,
+    // Pressing or releasing changes the reading at once, not on the next tick.
+    onPress: (lab, store) => runLoop(lab, store),
+    // Pin 7 copies whatever pin 2 reads.
+    outputs: (_lab, store) => (store.state.behavior.d7 === true ? ['D7'] : []),
     runningNote() {
       return { title: 'The sketch is running, but the LED doesn’t follow the button', detail: '' };
     },
@@ -355,7 +396,7 @@ export const LAB02: LabDef = {
 };
 
 /** True when a signal-ish pin other than 7 and 2 has a jumper in it. */
-function straySignalWire(c: Parameters<typeof findLoop>[0]): boolean {
+function straySignalWire(c: Circuit): boolean {
   return c.board.wires.some((wire) => {
     const pin = PIN_BY_ID[wire.pin];
     return (pin.kind === 'digital' || pin.kind === 'analog') && pin.node !== 'D7' && pin.node !== 'D2';
@@ -366,7 +407,7 @@ function straySignalWire(c: Parameters<typeof findLoop>[0]): boolean {
  * True when the 220 Ω resistor ended up doing the pull-down's job: it bridges
  * pin 2's net to GND, while the 10 kΩ is anywhere else (or still in the bin).
  */
-function usesWeakPullDown(c: Parameters<typeof findLoop>[0]): boolean {
+function usesWeakPullDown(c: Circuit): boolean {
   if (!c.wired('D2') || !c.wired('GND')) return false;
   const pin = c.net('D2');
   const gnd = c.net('GND');

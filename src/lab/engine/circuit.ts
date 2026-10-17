@@ -22,6 +22,8 @@ export type PlacedPart = {
 export type CircuitBoard = {
   parts: PlacedPart[];
   wires: (WireEnd & { id: string })[];
+  /** Jumpers that join two breadboard holes (for example a column to a power rail). */
+  links: [Hole, Hole][];
   /** Instance ids of parts that have burned out. */
   burnt: string[];
   /** Instance ids of buttons currently held down. */
@@ -67,6 +69,7 @@ export function buildCircuit(board: CircuitBoard): Circuit {
   const nets = new Nets();
 
   for (const wire of board.wires) nets.union(PIN_BY_ID[wire.pin].node, stripId(wire.hole));
+  for (const [a, b] of board.links) nets.union(stripId(a), stripId(b));
 
   for (const part of board.parts) {
     const def = PART_DEFS[part.def];

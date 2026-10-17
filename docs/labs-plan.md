@@ -9,7 +9,7 @@ uses the same circuit.
 ### Lab 01 · Blink an LED — DONE
 Digital output. Factory: machine indicator lights.
 
-### Lab 02 · Start button
+### Lab 02 · Start button — DONE
 - Concept: digital input, pull-down resistors, floating inputs.
 - Factory: start/stop pushbuttons; a floating input can start a motor by itself.
 - Parts: Lab 01 circuit + pushbutton + 10 kΩ resistor.
@@ -21,7 +21,7 @@ Digital output. Factory: machine indicator lights.
   interaction; pin-read behavior model (HIGH / LOW / floating).
 - Follow-up: `INPUT_PULLUP` pro tip after pass.
 
-### Lab 03 · Machine stack light
+### Lab 03 · Machine stack light — DONE
 - Concept: several outputs + a state machine; edge detection teaser.
 - Factory: andon stack lights (green = run, yellow = warn, red = stop).
 - Parts: green/yellow/red LEDs, 3× 220 Ω, button + 10 kΩ, GND rail.
@@ -34,7 +34,7 @@ Digital output. Factory: machine indicator lights.
 
 ## Phase 2 · Analog signals and sensors
 
-### Lab 04 · Speed dial
+### Lab 04 · Speed dial — DONE
 - Concept: analog input, Serial Monitor.
 - Factory: conveyor speed knob; explainer line on industrial 4–20 mA loops.
 - Parts: 10 kΩ potentiometer, 3 jumpers.

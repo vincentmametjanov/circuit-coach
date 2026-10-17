@@ -66,14 +66,14 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
   },
   jumper: {
     name: 'Jumper wire',
-    summary: 'A jumper wire connects two points that aren’t already joined, like an Arduino pin and a breadboard column.',
+    summary: 'A jumper wire connects two points that aren’t already joined: an Arduino pin to a breadboard column, or one column to another or to a power rail.',
     facts: [
       'It is just a wire with a metal pin on each end. Current flows either way.',
       'The color doesn’t change how it works. Here, black is GND, red is 5V and yellow is a digital pin, so you can trace the circuit by eye.',
       'Each hole and each Arduino pin holds one jumper.',
     ],
     howTo:
-      'Drag one from the bin into an Arduino pin or a breadboard hole, then drag its loose end to the other spot. You can also drag straight from any Arduino pin. Drag an end off the board to remove it.',
+      'Drag one from the bin into an Arduino pin or a breadboard hole, then drag its loose end to the other spot: another pin, or another hole for a breadboard jumper. You can also drag straight from any Arduino pin. Drag an end off the board to remove it.',
   },
   arduino: {
     name: 'Arduino Uno',
@@ -92,6 +92,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
       'Under each numbered column, holes a–e share one metal strip, and f–j share another.',
       'Two legs in the same strip are connected. Legs in different columns are not.',
       'The gap down the middle separates the top and bottom strips.',
+      'The + and − rails along the top and bottom edges each connect end to end. Wire GND to the − rail once and every part can reach ground through a short jumper.',
     ],
     howTo: 'Drop parts and jumper ends into its holes. A green highlight shows which strip a leg will join.',
   },
