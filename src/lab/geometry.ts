@@ -155,7 +155,7 @@ export const PORTRAIT: CanvasLayout = {
   board: { x: 26, y: 342 },
 };
 
-export function fitCanvas(width: number, height: number | null, binRows: 1 | 2 = 1) {
+export function fitCanvas(width: number, height: number | null, binRows: 1 | 2 | 3 = 1) {
   const wide = withBinRows(LANDSCAPE, binRows);
   const tall = withBinRows(PORTRAIT, binRows);
   if (height === null) {
@@ -186,17 +186,17 @@ export const RAIL_TOP_Y = 4;
 export const RAIL_BOTTOM_Y = 142;
 
 
-/** Extra height a second row of parts adds to the bin. */
+/** Extra height each additional row of parts adds to the bin. */
 export const BIN_ROW_HEIGHT = 52;
 
 /**
- * The layout with room for `rows` rows of parts in the bin. A second row makes
+ * The layout with room for `rows` rows of parts in the bin. Extra rows make
  * the bin taller: on wide screens the canvas grows downward; on phones the
  * breadboard and board move down below the taller bin.
  */
-export function withBinRows(base: CanvasLayout, rows: 1 | 2): CanvasLayout {
+export function withBinRows(base: CanvasLayout, rows: 1 | 2 | 3): CanvasLayout {
   if (rows === 1) return base;
-  const extra = BIN_ROW_HEIGHT;
+  const extra = BIN_ROW_HEIGHT * (rows - 1);
   const bin = { ...base.bin, height: base.bin.height + extra };
   const firstRowY = bin.y + 34;
   if (base.id === 'landscape') {
@@ -217,15 +217,18 @@ export type BinSlotPoint = { at: Point; labelY: number };
 
 /**
  * Bin slots spread evenly between the bin's left edge and the jumper bundle,
- * in one row, or two rows when there are more than four.
+ * in one, two, or three rows.
  */
 export function binSlotPoints(layout: CanvasLayout, count: number): BinSlotPoint[] {
   const { bin, binJumper } = layout;
-  const rows = count > 4 ? 2 : 1;
+  const rows = count > 10 ? 3 : count > 4 ? 2 : 1;
   const perRow = Math.ceil(count / rows);
   const left = bin.x + 42;
   const right = binJumper.x - 46;
-  const rowY = rows === 1 ? [bin.y + bin.height / 2 - 4] : [bin.y + 34, bin.y + 34 + BIN_ROW_HEIGHT];
+  const rowY =
+    rows === 1
+      ? [bin.y + bin.height / 2 - 4]
+      : Array.from({ length: rows }, (_, r) => bin.y + 34 + r * BIN_ROW_HEIGHT);
   return Array.from({ length: count }, (_, index) => {
     const row = Math.floor(index / perRow);
     const inRow = row === rows - 1 ? count - perRow * (rows - 1) : perRow;

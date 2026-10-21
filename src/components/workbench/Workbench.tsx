@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from 'react';
-import { type GestureResponderEvent, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { type GestureResponderEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, G, Pattern, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import {
@@ -35,16 +35,26 @@ import { ArduinoUno } from './ArduinoUno';
 import { Breadboard, PartsBin } from './Breadboard';
 import {
   BANDS_10K,
+  Battery,
   BinJumpers,
+  Buzzer,
+  Diode,
   JumperWire,
   LOOSE_WIRE,
   Led,
   type LedGlow,
+  Ldr,
   LooseEnd,
+  Motor,
   Pot,
   Pushbutton,
   Resistor,
+  RgbLed,
+  Servo,
+  Stepper,
   Tag,
+  Tmp36,
+  Transistor,
   wireColor,
 } from './Parts';
 
@@ -55,6 +65,8 @@ type Props = {
   state: RuntimeState;
   /** LED glow per instance id, computed from the behavior model. */
   ledGlow: Record<string, LedGlow>;
+  /** PWM brightness (0–1) per LED instance id; overrides glow when present. */
+  ledLevels?: Record<string, number>;
   dispatch: (action: RuntimeAction) => void;
   onDraggingChange?: (dragging: boolean) => void;
   /** Called when the student taps a component to learn what it is. */
@@ -143,10 +155,22 @@ function loosePoint(layout: CanvasLayout, wire: RuntimeState['wires'][number]): 
   return { x: at.x, y: clamp(at.y + (pin.header === 'top' ? -28 : 20)) };
 }
 
-export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDraggingChange, onInspect }: Props) {
+export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispatch, onDraggingChange, onInspect }: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
+  // A categorized bin (free play) stocks one category at a time, picked from a dropdown.
+  const categories = useMemo(() => {
+    const seen: string[] = [];
+    for (const spec of lab.parts) if (spec.category && !seen.includes(spec.category)) seen.push(spec.category);
+    return seen;
+  }, [lab]);
+  const [category, setCategory] = useState<string | null>(categories[0] ?? null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const binParts = useMemo(
+    () => (categories.length > 0 && category ? lab.parts.filter((p) => p.category === category) : lab.parts),
+    [lab, categories, category],
+  );
   // Identical parts share one bin slot; only the next one still in the bin is shown there.
-  const groups = useMemo(() => binGroups(lab.parts), [lab]);
+  const groups = useMemo(() => binGroups(binParts), [binParts]);
   const binSlots = useMemo(() => {
     const points = binSlotPoints(layout, groups.length);
     return groups.map((g, i) => ({ key: g.key, label: g.label, ids: g.ids, ...points[i] }));
@@ -379,7 +403,7 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
           </RadialGradient>
         </Defs>
 
-        <StaticScene layout={layout} slots={binSlots} />
+        <StaticScene layout={layout} slots={binSlots} binTitle={categories.length > 0 && category ? category : undefined} />
 
         {/* Board status LEDs */}
         <BoardLight at={boardLed('on')} color="#3BE36B" />
@@ -402,7 +426,7 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
         {parts
           .filter((p) => !p.dragging)
           .map(({ spec, center }) => (
-            <PartView key={spec.id} spec={spec} at={center} state={state} glow={ledGlow[spec.id] ?? 'off'} />
+            <PartView key={spec.id} spec={spec} at={center} state={state} glow={ledGlow[spec.id] ?? 'off'} level={ledLevels?.[spec.id]} />
           ))}
 
         {wires
@@ -485,11 +509,11 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
         const name = displayName(lab, spec.id);
         const placed = state.parts[spec.id] != null;
         const pressable = !!def.pressable && placed && state.running;
-        const knob = spec.def === 'pot' && placed && state.running;
+        const adjustable = !!def.adjustable && placed && state.running;
         const label = pressable
           ? `${name}: press and hold to close the contact`
-          : knob
-            ? `${name}: drag left or right to turn the knob, tap to learn what it is`
+          : adjustable
+            ? `${name}: drag left or right to adjust it, tap to learn what it is`
             : def.flippable
               ? `${name}: drag to place, tap to learn or flip`
               : `${name}: drag to place, tap to learn what it is`;
@@ -503,19 +527,20 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
                 dispatch({ type: 'pressPart', part: spec.id, pressed: true });
                 return;
               }
-              if (knob) {
-                // While the sketch runs, the placed pot turns instead of moving.
-                const start = typeof state.behavior.knob === 'number' ? state.behavior.knob : 0.5;
+              if (adjustable) {
+                // While the sketch runs, a placed adjustable part (the knob, a sensor) turns instead of moving.
+                const control = def.adjustable!.control;
+                const start = typeof state.behavior[control] === 'number' ? (state.behavior[control] as number) : 0.5;
                 startDrag({ kind: 'knob', part: spec.id, start, origin: home, at: home });
                 return;
               }
               startDrag({ kind: 'part', part: spec.id, origin: home, at: home });
             }}
             onMove={(dx, dy) => {
-              if (knob) {
+              if (adjustable) {
                 // A full sweep is about 120 canvas units of drag, measured from where the turn started.
                 const value = Math.max(0, Math.min(1, (drag?.kind === 'knob' ? drag.start : 0.5) + dx / (scale * 120)));
-                dispatch({ type: 'control', id: 'knob', value });
+                dispatch({ type: 'control', id: def.adjustable!.control, value });
                 return;
               }
               moveDrag(dx, dy);
@@ -525,9 +550,9 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
                 dispatch({ type: 'pressPart', part: spec.id, pressed: false });
                 return;
               }
-              if (knob) {
+              if (adjustable) {
                 endDrag();
-                if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) onInspect?.('pot');
+                if (Math.abs(dx) < TAP_SLOP && Math.abs(dy) < TAP_SLOP) onInspect?.(def.id as ComponentId);
                 return;
               }
               finish(dx, dy, cancelled);
@@ -563,6 +588,53 @@ export function Workbench({ layout, scale, lab, state, ledGlow, dispatch, onDrag
           />
         ));
       })}
+
+      {/* Bin category picker, above everything else in the bin corner. */}
+      {categories.length > 1 && category ? (
+        <View style={[styles.picker, frame(layout.bin.x + 6, layout.bin.y + 4, 128, 24)]}>
+          {pickerOpen ? (
+            <Pressable
+              accessibilityLabel="Close the category picker"
+              style={{
+                position: 'absolute',
+                left: -(layout.bin.x + 6) * scale,
+                top: -(layout.bin.y + 4) * scale,
+                width: layout.width * scale,
+                height: layout.height * scale,
+              }}
+              onPress={() => setPickerOpen(false)}
+            />
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Parts bin: showing ${category}. Tap to choose another category.`}
+            onPress={() => setPickerOpen((open) => !open)}
+            style={styles.pickerButton}
+          >
+            <Text style={styles.pickerText} numberOfLines={1}>
+              {category} ▾
+            </Text>
+          </Pressable>
+          {pickerOpen ? (
+            <View style={[styles.pickerMenu, layout.id === 'landscape' ? styles.pickerMenuUp : styles.pickerMenuDown]}>
+              {categories.map((c) => (
+                <Pressable
+                  key={c}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show ${c}`}
+                  onPress={() => {
+                    setCategory(c);
+                    setPickerOpen(false);
+                  }}
+                  style={[styles.pickerItem, c === category && styles.pickerItemActive]}
+                >
+                  <Text style={[styles.pickerItemText, c === category && styles.pickerItemTextActive]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -573,43 +645,80 @@ function PartView({
   at,
   state,
   glow,
+  level,
   lifted = false,
 }: {
   spec: PartSpec;
   at: Point;
   state: RuntimeState;
   glow: LedGlow;
+  level?: number;
   lifted?: boolean;
 }) {
   const flipped = state.flipped.includes(spec.id);
   const burnt = state.burnt.includes(spec.id);
   const pressed = state.pressed.includes(spec.id);
+  // Behavior-driven visual state for animated parts (servo angle, motor spinning…).
+  const dyn = state.behavior[spec.id];
   switch (spec.def) {
     case 'resistor':
       return <Resistor at={at} lifted={lifted} />;
     case 'resistor10k':
       return <Resistor at={at} lifted={lifted} bands={BANDS_10K} />;
     case 'led':
-      return <Led at={at} flipped={flipped} glow={lifted ? 'off' : glow} burnt={burnt} lifted={lifted} color={(spec.color as 'red' | 'green' | 'yellow') ?? 'red'} />;
+      return (
+        <Led
+          at={at}
+          flipped={flipped}
+          glow={lifted ? 'off' : glow}
+          burnt={burnt}
+          lifted={lifted}
+          color={(spec.color as 'red' | 'green' | 'yellow') ?? 'red'}
+          level={lifted ? undefined : level}
+        />
+      );
     case 'button':
       return <Pushbutton at={at} pressed={pressed} lifted={lifted} />;
     case 'pot':
       return <Pot at={at} value={typeof state.behavior.knob === 'number' ? state.behavior.knob : 0.5} lifted={lifted} />;
+    case 'rgbLed':
+      return <RgbLed at={at} levels={dyn as { r: number; g: number; b: number } | undefined} lifted={lifted} />;
+    case 'ldr':
+      return <Ldr at={at} blocked={dyn === true} lifted={lifted} />;
+    case 'tmp36':
+      return <Tmp36 at={at} lifted={lifted} />;
+    case 'buzzer':
+      return <Buzzer at={at} flipped={flipped} beep={dyn === true} lifted={lifted} />;
+    case 'servo':
+      return <Servo at={at} angle={typeof dyn === 'number' ? dyn : 0} lifted={lifted} />;
+    case 'motor':
+      return <Motor at={at} spinning={typeof dyn === 'number' && dyn > 0} lifted={lifted} />;
+    case 'transistor':
+      return <Transistor at={at} lifted={lifted} />;
+    case 'diode':
+      return <Diode at={at} flipped={flipped} lifted={lifted} />;
+    case 'battery':
+      return <Battery at={at} flipped={flipped} lifted={lifted} />;
+    case 'stepper':
+      return <Stepper at={at} lifted={lifted} />;
   }
 }
 
 const StaticScene = memo(function StaticScene({
   layout,
   slots,
+  binTitle,
 }: {
   layout: CanvasLayout;
   slots: { key: string; label: string; labelY: number; at: Point }[];
+  /** Category name for a filtered bin (free play). */
+  binTitle?: string;
 }) {
   return (
     <G>
       <Rect x={0} y={0} width={layout.width} height={layout.height} fill={colors.canvas} />
       <Rect x={0} y={0} width={layout.width} height={layout.height} fill="url(#mat)" />
-      <PartsBin layout={layout} slots={slots} />
+      <PartsBin layout={layout} slots={slots} title={binTitle} />
       <BinJumpers at={layout.binJumper} />
       <Breadboard origin={layout.breadboard} />
       <ArduinoUno origin={layout.board} />
@@ -799,5 +908,56 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: 'absolute',
+  },
+  picker: {
+    position: 'absolute',
+    zIndex: 20,
+  },
+  pickerButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.panel,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  pickerText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pickerMenu: {
+    position: 'absolute',
+    left: 0,
+    backgroundColor: colors.panel,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.panelBorder,
+    minWidth: 128,
+    overflow: 'hidden',
+    zIndex: 21,
+  },
+  // The bin sits at the top of the canvas on phones and at the bottom on wide screens.
+  pickerMenuDown: {
+    top: 26,
+  },
+  pickerMenuUp: {
+    bottom: 26,
+  },
+  pickerItem: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  pickerItemActive: {
+    backgroundColor: colors.teal,
+  },
+  pickerItemText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pickerItemTextActive: {
+    color: '#FFFFFF',
   },
 });

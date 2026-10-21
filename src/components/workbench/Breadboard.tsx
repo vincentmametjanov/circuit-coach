@@ -85,10 +85,13 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
 export const PartsBin = memo(function PartsBin({
   layout,
   slots,
+  title,
 }: {
   layout: CanvasLayout;
   /** One entry per bin slot: its label and where it sits. */
   slots: { key: string; label: string; labelY: number; at: Point }[];
+  /** Category name when the bin is filtered (free play). */
+  title?: string;
 }) {
   const { bin, binJumper } = layout;
   return (
@@ -106,7 +109,7 @@ export const PartsBin = memo(function PartsBin({
         strokeDasharray="4 3"
       />
       <Text x={bin.x + 10} y={bin.y + 13} fontSize={6.5} fontWeight="700" fill="#5B7173" letterSpacing={1.2} fontFamily={fonts.svg}>
-        PARTS BIN
+        {title ? `PARTS BIN · ${title.toUpperCase()}` : 'PARTS BIN'}
       </Text>
       {slots.map((slot) => (
         <Text key={slot.key} x={slot.at.x} y={slot.labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>

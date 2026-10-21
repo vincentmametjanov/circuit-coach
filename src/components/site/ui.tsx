@@ -52,7 +52,7 @@ function SiteHeader() {
         <Pressable accessibilityRole="link" onPress={() => router.navigate('/labs')} style={styles.navLink}>
           <Text style={styles.navText}>Labs</Text>
         </Pressable>
-        {!phone ? <Button label="Start Lab 01" onPress={() => router.navigate('/labs/lab01')} small /> : null}
+        {!phone ? <Button label="Open bench" onPress={() => router.navigate('/play')} small /> : null}
       </View>
     </View>
   );

@@ -1,8 +1,7 @@
 // Drives any lab built to the LabDef shape: a reducer over bench state, the
 // Output console log, build-time mistake flagging, burn-out physics, and the
-// behavior hook that runs while a sketch is "uploaded". Lab 01's reducer in
-// src/lab/state.ts wraps this with its original action names; LabScreen uses
-// it directly for every lab.
+// behavior hook that runs while a sketch is "uploaded". LabScreen uses this
+// shared reducer directly for every lab.
 
 import { type Circuit, type CircuitBoard, type PlacedPart, type WireEnd, buildCircuit, pathThrough } from './engine/circuit';
 import type { LabDef, Message, StepQuery, VerdictSpec } from './lab';
@@ -29,8 +28,21 @@ export type BenchState = {
 
 export type BenchWire = { id: string; pin: string | null; hole: Hole | null; hole2?: Hole | null };
 
-/** True when both of a jumper's ends are plugged in. */
-export const isPlugged = (wire: BenchWire) => wire.hole !== null && (wire.pin !== null || !!wire.hole2);
+type PinWire = BenchWire & { pin: string; hole: Hole };
+type BreadboardWire = BenchWire & { pin: null; hole: Hole; hole2: Hole };
+
+/** True when a jumper connects an Arduino pin to a breadboard hole. */
+function isPinWire(wire: BenchWire): wire is PinWire {
+  return wire.pin !== null && wire.hole !== null;
+}
+
+/** True when a jumper joins two breadboard holes. */
+function isBreadboardWire(wire: BenchWire): wire is BreadboardWire {
+  return wire.pin === null && wire.hole !== null && wire.hole2 !== null && wire.hole2 !== undefined;
+}
+
+/** True when both ends of either kind of jumper are plugged in. */
+export const isPlugged = (wire: BenchWire) => isPinWire(wire) || isBreadboardWire(wire);
 
 export type RuntimeState = BenchState & {
   running: boolean;
@@ -121,9 +133,9 @@ export function toCircuitBoard(lab: LabDef, bench: BenchState): CircuitBoard {
   return {
     parts,
     wires: bench.wires
-      .filter((w) => w.pin !== null && w.hole !== null)
-      .map((w) => ({ id: w.id, pin: w.pin!, hole: w.hole! }) satisfies WireEnd & { id: string }),
-    links: bench.wires.filter((w) => w.pin === null && w.hole && w.hole2).map((w) => [w.hole!, w.hole2!] as [Hole, Hole]),
+      .filter(isPinWire)
+      .map((wire) => ({ id: wire.id, pin: wire.pin, hole: wire.hole }) satisfies WireEnd & { id: string }),
+    links: bench.wires.filter(isBreadboardWire).map((wire) => [wire.hole, wire.hole2]),
     burnt: bench.burnt,
     pressed: bench.pressed,
   };

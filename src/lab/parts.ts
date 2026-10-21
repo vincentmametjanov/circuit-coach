@@ -5,11 +5,27 @@
 
 import type { Hole } from './geometry';
 
-export type PartDefId = 'resistor' | 'resistor10k' | 'led' | 'button' | 'pot';
+export type PartDefId =
+  | 'resistor'
+  | 'resistor10k'
+  | 'led'
+  | 'button'
+  | 'pot'
+  | 'rgbLed'
+  | 'ldr'
+  | 'tmp36'
+  | 'buzzer'
+  | 'servo'
+  | 'motor'
+  | 'transistor'
+  | 'diode'
+  | 'battery'
+  | 'stepper';
 
 export type LegPattern =
   | { kind: 'span'; span: number }
   | { kind: 'span3'; span: number }
+  | { kind: 'span4'; span: number }
   | { kind: 'across'; rowGap: number; colSpan: number };
 
 /** All holes a part's legs occupy when its first leg sits in `start`. */
@@ -18,8 +34,9 @@ export function partLegs(def: PartDefId, start: Hole): Hole[] {
   if (pattern.kind === 'span') {
     return Array.from({ length: 2 }, (_, i) => ({ row: start.row, col: start.col + i * pattern.span }));
   }
-  if (pattern.kind === 'span3') {
-    return Array.from({ length: 3 }, (_, i) => ({ row: start.row, col: start.col + i * pattern.span }));
+  if (pattern.kind === 'span3' || pattern.kind === 'span4') {
+    const count = pattern.kind === 'span3' ? 3 : 4;
+    return Array.from({ length: count }, (_, i) => ({ row: start.row, col: start.col + i * pattern.span }));
   }
   const { rowGap, colSpan } = pattern;
   // Dropped in the top half, the legs straddle the center gap. Dropped in the
@@ -56,6 +73,11 @@ export type PartDef = {
   flippable?: boolean;
   /** Press-and-hold control while the sketch runs (pushbutton). */
   pressable?: boolean;
+  /**
+   * Dragging this part left/right while the sketch runs adjusts a 0–1 control
+   * stored under this key in the behavior state (the potentiometer's knob).
+   */
+  adjustable?: { control: string };
   /**
    * Nets a part shorts together by itself. A button joins the two legs on each
    * side of the center gap even while it is not pressed.
@@ -118,12 +140,114 @@ export const PART_DEFS: Record<PartDefId, PartDef> = {
     // Three legs in a row: outer (5V), wiper (middle), outer (GND).
     pattern: { kind: 'span3', span: 2 },
     polarized: false,
+    adjustable: { control: 'knob' },
     box: { left: -26, right: 26, top: -24, bottom: 10 },
+  },
+  rgbLed: {
+    id: 'rgbLed',
+    name: 'RGB LED (common cathode)',
+    shortName: 'RGB',
+    // Four legs in a row: red, common cathode (−), green, blue.
+    pattern: { kind: 'span4', span: 1 },
+    polarized: false,
+    box: { left: -22, right: 22, top: -30, bottom: 8 },
+  },
+  ldr: {
+    id: 'ldr',
+    name: 'photoresistor (LDR)',
+    shortName: 'LDR',
+    pattern: { kind: 'span', span: 3 },
+    polarized: false,
+    adjustable: { control: 'light' },
+    box: { left: -26, right: 26, top: -16, bottom: 10 },
+  },
+  tmp36: {
+    id: 'tmp36',
+    name: 'TMP36 temperature sensor',
+    shortName: 'TMP36',
+    // Three legs: +VS, VOUT, GND (flat side facing you).
+    pattern: { kind: 'span3', span: 2 },
+    polarized: false,
+    adjustable: { control: 'temp' },
+    box: { left: -26, right: 26, top: -18, bottom: 10 },
+  },
+  buzzer: {
+    id: 'buzzer',
+    name: 'piezo buzzer',
+    shortName: 'buzzer',
+    pattern: { kind: 'span', span: 2 },
+    polarized: true,
+    flippable: true,
+    box: { left: -18, right: 18, top: -18, bottom: 10 },
+  },
+  servo: {
+    id: 'servo',
+    name: 'servo motor',
+    shortName: 'servo',
+    // Three legs in plug order: GND (brown), 5V (red), signal (orange).
+    pattern: { kind: 'span3', span: 2 },
+    polarized: false,
+    box: { left: -28, right: 28, top: -26, bottom: 10 },
+  },
+  motor: {
+    id: 'motor',
+    name: 'DC motor',
+    shortName: 'motor',
+    pattern: { kind: 'span', span: 3 },
+    polarized: false,
+    box: { left: -28, right: 28, top: -20, bottom: 10 },
+  },
+  transistor: {
+    id: 'transistor',
+    name: 'PN2222 transistor',
+    shortName: 'PN2222',
+    // Flat side facing you: emitter, base, collector.
+    pattern: { kind: 'span3', span: 2 },
+    polarized: false,
+    box: { left: -26, right: 26, top: -18, bottom: 10 },
+  },
+  diode: {
+    id: 'diode',
+    name: '1N4007 diode',
+    shortName: 'diode',
+    pattern: { kind: 'span', span: 3 },
+    polarized: true,
+    flippable: true,
+    box: { left: -27, right: 27, top: -11, bottom: 11 },
+  },
+  battery: {
+    id: 'battery',
+    name: '9 V battery',
+    shortName: '9 V',
+    // Leg 0 is + (red lead), leg 1 is − (black lead).
+    pattern: { kind: 'span', span: 4 },
+    polarized: true,
+    flippable: true,
+    box: { left: -30, right: 30, top: -18, bottom: 10 },
+  },
+  stepper: {
+    id: 'stepper',
+    name: 'stepper + driver',
+    shortName: 'stepper',
+    // Simplified driver: step pulse, direction, ground.
+    pattern: { kind: 'span3', span: 2 },
+    polarized: false,
+    box: { left: -28, right: 28, top: -20, bottom: 10 },
   },
 };
 
 /** A part instance in a lab: which definition, and the id the lab uses for it. */
-export type PartSpec = { def: PartDefId; id: string; name?: string; color?: string };
+export type PartSpec = {
+  def: PartDefId;
+  id: string;
+  name?: string;
+  color?: string;
+  /**
+   * Parts-bin category. When any part in a lab has one, the bin shows a
+   * category picker and stocks only the selected category (free play).
+   */
+  category?: string;
+};
 
 /** One slot in the parts bin: identical part instances stack into a single slot. */
 export type BinGroup = { key: string; ids: string[]; def: PartDefId; label: string };
@@ -141,5 +265,8 @@ export function binGroups(parts: PartSpec[]): BinGroup[] {
   return groups.map((g) => (g.ids.length > 1 ? { ...g, label: `${g.label} ×${g.ids.length}` } : g));
 }
 
-/** Labs with more than four slots get a second row in the bin. */
-export const binRowsFor = (parts: PartSpec[]): 1 | 2 => (binGroups(parts).length > 4 ? 2 : 1);
+/** Labs with more than four slots get extra rows in the bin (free play uses three). */
+export const binRowsFor = (parts: PartSpec[]): 1 | 2 | 3 => {
+  const slots = binGroups(parts).length;
+  return slots > 10 ? 3 : slots > 4 ? 2 : 1;
+};

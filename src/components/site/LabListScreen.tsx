@@ -15,9 +15,12 @@ export function LabListScreen() {
       <Band>
         <SectionTitle
           eyebrow="Labs"
-          title="Ten labs, one skill at a time"
-          intro="Work through them in order: each lab reuses what the one before taught. Lab 01 is ready now."
+          title="Twelve labs, one skill at a time"
+          intro="Work through them in order: each lab reuses what the one before taught."
         />
+        <View style={styles.freePlay}>
+          <Button label="Open the bench — free play with every part" onPress={() => router.navigate('/play')} kind="secondary" />
+        </View>
         <View style={styles.phases}>
           {PHASES.map((phase, index) => (
             <View key={phase} style={styles.phase}>
@@ -66,6 +69,7 @@ function LabCard({ lab }: { lab: LabSummary }) {
 const styles = StyleSheet.create({
   phases: { gap: 40 },
   phase: { gap: 16 },
+  freePlay: { marginTop: -24, alignItems: 'flex-start' },
   phaseTitle: { color: colors.titleBar, fontFamily: fonts.ui, fontSize: 20, fontWeight: '700' },
   card: { gap: 8 },
   cardLater: { backgroundColor: colors.panel },

@@ -47,6 +47,11 @@ export type Behavior = {
    * nodes ('D7'). LEDs glow, and burn out, from these plus the wired supplies.
    */
   outputs?: (lab: LabDef, store: LabStore) => string[];
+  /**
+   * Per-LED brightness (0–1) for PWM labs, keyed by part instance id. When a
+   * level is present it overrides the on/dim/off glow from `outputs`.
+   */
+  ledLevels?: (lab: LabDef, store: LabStore) => Record<string, number>;
   /** Extra verdict for the running circuit, e.g. "the LED isn't blinking". */
   runningNote?: (lab: LabDef, store: LabStore) => Message | null;
   /** Success line logged when the lab passes on upload. */

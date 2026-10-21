@@ -2,7 +2,7 @@
 // one idea from a standard Arduino starter kit and names where the same circuit
 // runs in a real factory. Only labs with `ready: true` can be opened.
 
-export type LabPhase = 'Outputs and inputs' | 'Analog signals and sensors' | 'Motion and the capstone';
+export type LabPhase = 'Outputs and inputs' | 'Analog signals and sensors' | 'Motion and alarms' | 'Toward the factory';
 
 export type LabSummary = {
   id: string;
@@ -64,10 +64,10 @@ export const LABS: LabSummary[] = [
     number: '05',
     title: 'Dimmer and color mixer',
     concept: 'PWM output: in-between brightness from a digital pin.',
-    part: 'RGB LED',
+    part: 'LED + knob (RGB LED extension)',
     factory: 'Motor speed and heater power control',
     phase: 'Analog signals and sensors',
-    ready: false,
+    ready: true,
   },
   {
     id: 'lab06',
@@ -77,7 +77,7 @@ export const LABS: LabSummary[] = [
     part: 'Light sensor',
     factory: 'Photoelectric sensors that count parts',
     phase: 'Analog signals and sensors',
-    ready: false,
+    ready: true,
   },
   {
     id: 'lab07',
@@ -86,8 +86,8 @@ export const LABS: LabSummary[] = [
     concept: 'Reading a sensor in real units and raising an alarm.',
     part: 'Temperature sensor + buzzer',
     factory: 'Oven and motor overheat alarms',
-    phase: 'Analog signals and sensors',
-    ready: false,
+    phase: 'Motion and alarms',
+    ready: true,
   },
   {
     id: 'lab08',
@@ -96,8 +96,8 @@ export const LABS: LabSummary[] = [
     concept: 'Position control with a servo motor.',
     part: 'Servo motor',
     factory: 'Diverter gates and robot arm joints',
-    phase: 'Motion and the capstone',
-    ready: false,
+    phase: 'Motion and alarms',
+    ready: true,
   },
   {
     id: 'lab09',
@@ -106,21 +106,41 @@ export const LABS: LabSummary[] = [
     concept: 'Switching a motor safely with a transistor and diode.',
     part: 'DC motor + transistor',
     factory: 'Conveyor drives and motor control cabinets',
-    phase: 'Motion and the capstone',
-    ready: false,
+    phase: 'Motion and alarms',
+    ready: true,
   },
   {
     id: 'lab10',
     number: '10',
+    title: 'Limit switches & debounce',
+    concept: 'End-of-travel switches, E-stops, and counting one press once.',
+    part: 'Two buttons',
+    factory: 'Limit switches and latching E-stops on every machine',
+    phase: 'Toward the factory',
+    ready: true,
+  },
+  {
+    id: 'lab11',
+    number: '11',
+    title: 'Stepper homing',
+    concept: 'Step and direction pulses, and the homing routine.',
+    part: 'Stepper + driver',
+    factory: 'CNC and pick-and-place machines homing at power-up',
+    phase: 'Toward the factory',
+    ready: true,
+  },
+  {
+    id: 'lab12',
+    number: '12',
     title: 'Mini sorting line',
     concept: 'Sensor, decision, actuator and status light working together.',
     part: 'Everything so far',
     factory: 'An automated work cell, the job a PLC does',
-    phase: 'Motion and the capstone',
-    ready: false,
+    phase: 'Toward the factory',
+    ready: true,
   },
 ];
 
-export const PHASES: LabPhase[] = ['Outputs and inputs', 'Analog signals and sensors', 'Motion and the capstone'];
+export const PHASES: LabPhase[] = ['Outputs and inputs', 'Analog signals and sensors', 'Motion and alarms', 'Toward the factory'];
 
 export const labById = (id: string) => LABS.find((lab) => lab.id === id);

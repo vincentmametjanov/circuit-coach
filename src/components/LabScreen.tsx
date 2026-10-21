@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ComponentId } from '../lab/components';
 import { fitCanvas } from '../lab/geometry';
 import type { LabDef } from '../lab/lab';
-import { binRowsFor } from '../lab/parts';
+import { binGroups, binRowsFor, type PartSpec } from '../lab/parts';
 import {
   type RuntimeAction,
   type RuntimeState,
@@ -31,8 +31,22 @@ type TabId = 'bench' | 'code' | 'guide' | 'serial';
 const COMPILE_MS = 700;
 const UPLOAD_MS = 1000;
 
+/**
+ * Bin rows the canvas needs for this lab. A categorized bin (free play) shows
+ * one category at a time, so it sizes for the largest category, not the whole
+ * parts list.
+ */
+function binRowsForLab(lab: LabDef): 1 | 2 | 3 {
+  const categorized = lab.parts.filter((p) => p.category);
+  if (categorized.length === 0) return binRowsFor(lab.parts);
+  const perCategory = new Map<string, PartSpec[]>();
+  for (const spec of categorized) perCategory.set(spec.category!, [...(perCategory.get(spec.category!) ?? []), spec]);
+  const maxGroups = Math.max(...[...perCategory.values()].map((specs) => binGroups(specs).length));
+  return maxGroups > 4 ? 2 : 1;
+}
+
 /** The lab screen drives any lab defined in src/lab/labs/ through the runtime. */
-export function LabScreen({ lab }: { lab: LabDef }) {
+export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play: the bench starts already live. */ autoRun?: boolean }) {
   const { width: windowWidth } = useWindowDimensions();
   const wide = windowWidth >= 900;
 
@@ -47,6 +61,11 @@ export function LabScreen({ lab }: { lab: LabDef }) {
   const [area, setArea] = useState<{ width: number; height: number } | null>(null);
   const [inspected, setInspected] = useState<ComponentId | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Free play has nothing to upload: power the bench as soon as it opens.
+  useEffect(() => {
+    if (autoRun) dispatch({ type: 'uploadDone' });
+  }, [autoRun]);
 
   const verdict = useMemo(() => judge(lab, state), [lab, state]);
   const steps = runtimeSteps(lab, state, state.running);
@@ -89,6 +108,11 @@ export function LabScreen({ lab }: { lab: LabDef }) {
 
   // How each LED glows comes from the wiring and the pins the sketch drives HIGH.
   const ledGlow = useMemo(() => ledGlowFor(lab, state), [lab, state]);
+  // PWM labs give each LED a brightness level instead of an on/off state.
+  const ledLevels = useMemo(
+    () => lab.behavior.ledLevels?.(lab, { lab, state }) ?? {},
+    [lab, state],
+  );
 
   const sketch = lab.sketch.name;
   const status =
@@ -121,7 +145,7 @@ export function LabScreen({ lab }: { lab: LabDef }) {
   const hasSerial = !!lab.behavior.analogReads || state.serial.length > 0;
 
   const renderBench = (width: number, height: number | null) => {
-    const { layout, scale } = fitCanvas(width, height, binRowsFor(lab.parts));
+    const { layout, scale } = fitCanvas(width, height, binRowsForLab(lab));
     return (
       <Workbench
         layout={layout}
@@ -129,6 +153,7 @@ export function LabScreen({ lab }: { lab: LabDef }) {
         lab={lab}
         state={state}
         ledGlow={ledGlow}
+        ledLevels={ledLevels}
         dispatch={dispatch}
         onDraggingChange={setDragging}
         onInspect={setInspected}

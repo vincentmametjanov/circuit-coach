@@ -1,0 +1,61 @@
+name: Bug report
+description: Tell us about a problem in Circuit Coach.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Circuit Coach. Please do not include private student information.
+  - type: input
+    id: lab
+    attributes:
+      label: Affected lab or screen
+      description: For example, Lab 03 or the free-play workbench.
+      placeholder: Lab 03
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Web browser
+        - iPhone or iPad
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that reliably shows the problem.
+      placeholder: |
+        1. Open ...
+        2. Place ...
+        3. Press ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser or device details
+      description: Include browser and version, or iOS/iPadOS version.
+      placeholder: Chrome 140 on macOS 15
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add screenshots, console output, or other useful details.

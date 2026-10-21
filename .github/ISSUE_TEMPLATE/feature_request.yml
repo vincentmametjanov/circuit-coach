@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement to Circuit Coach.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for sharing an idea. Please describe the learner or instructor need it would address.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or learning need
+      description: What is difficult today, and for whom?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Explain the new lab, behavior, interface, or documentation change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include a workaround or another approach if there is one.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sketches, lesson goals, references, or screenshots that clarify the request.

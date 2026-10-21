@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
 
-import { LABS, PHASES, labById } from '../../lab/catalog';
 import { colors, fonts } from '../../theme';
 import { ArduinoUno } from '../workbench/ArduinoUno';
 import { Band, Button, Card, Grid, SectionTitle, SitePage, text, useScreen } from './ui';
@@ -40,40 +39,29 @@ const allLabs = () => router.navigate('/labs');
 const WHY = [
   {
     title: 'Code that moves things',
-    body: 'An Arduino is a small computer that reads buttons and sensors and switches lights, buzzers and motors. Your code does something you can see.',
+    body: 'Read buttons and sensors, switch lights and motors — programs you can see working.',
   },
   {
     title: 'The ideas behind every machine',
-    body: 'Inputs, outputs, sensors and control logic run cars, robots, medical devices and factory lines. Arduino is the friendliest place to learn them.',
+    body: 'Inputs, outputs and control logic run cars, robots and factory lines. Arduino is the friendliest way in.',
   },
   {
     title: 'A first step into engineering',
-    body: 'Electrical, mechanical and computer engineering all start here: circuits, Ohm’s law, and programs that react to the real world.',
+    body: 'Circuits, Ohm’s law and code that reacts to the world — where electrical, mechanical and software engineering meet.',
   },
 ];
 
-const FACTORY_LABS = ['lab02', 'lab03', 'lab04', 'lab06', 'lab08', 'lab09'];
-
-const CAREERS = [
-  'Electrical engineering',
-  'Mechatronics technician',
-  'Industrial automation and PLCs',
-  'Robotics',
-  'Embedded software',
-  'Maintenance and controls',
-];
-
 const ACCESS = [
-  { title: 'Nothing to buy', body: 'No board, no parts, no lab room. Mistakes cost nothing, even a burned-out LED.' },
-  { title: 'Runs on what schools have', body: 'Open it in a browser on a school Chromebook or laptop, or use it on an iPad or iPhone.' },
-  { title: 'Real kit, real skills', body: 'Every lab uses the parts in standard Arduino starter kits, so the circuits work the same on a real board.' },
+  { title: 'Nothing to buy', body: 'No board, no parts, no lab room. Mistakes cost nothing — even a burned-out LED.' },
+  { title: 'Runs on what you have', body: 'Works in a browser on a laptop, iPad or iPhone.' },
+  { title: 'Real kit, real skills', body: 'The same parts as standard Arduino starter kits, so your circuits work on real hardware.' },
 ];
 
 const STEPS = [
-  { title: 'Build', body: 'Drag a resistor, an LED and jumper wires onto a breadboard next to an Arduino Uno.' },
-  { title: 'Check', body: 'Press Verify. The coach traces your wiring and explains any mistake in plain words.' },
-  { title: 'Upload', body: 'Send the sketch to the simulated board and watch your circuit come to life.' },
-  { title: 'Connect', body: 'See where the same circuit runs on a real factory floor, then try it on real hardware.' },
+  { title: 'Build', body: 'Drag parts and jumper wires onto the breadboard.' },
+  { title: 'Check', body: 'The coach traces your wiring and explains mistakes in plain words.' },
+  { title: 'Upload', body: 'Run the sketch on the simulated board and watch the circuit work.' },
+  { title: 'Connect', body: 'See where the same circuit runs in a real factory.' },
 ];
 
 export function HomeScreen() {
@@ -90,12 +78,13 @@ export function HomeScreen() {
             Learn Arduino without a lab.
           </Text>
           <Text style={styles.lead}>
-            Build real circuits on a virtual Arduino and breadboard. A coach checks your wiring, explains every mistake,
-            and shows how each circuit is used in engineering and manufacturing.
+            Build real circuits on a virtual Arduino and breadboard. A coach checks your wiring and explains every
+            mistake.
           </Text>
           <View style={[styles.actions, phone && styles.actionsPhone]}>
             <Button label="Start Lab 01" onPress={startLab} />
             <Button label="See all labs" onPress={allLabs} kind="secondary" />
+            <Button label="Open bench (free play)" onPress={() => router.navigate('/play')} kind="secondary" />
           </View>
         </View>
         <View style={[styles.heroArt, screen.wide ? styles.half : styles.heroArtStacked]}>
@@ -109,7 +98,7 @@ export function HomeScreen() {
         <SectionTitle
           eyebrow="Why learn Arduino"
           title="The smallest computer that can run a machine"
-          intro="Arduino is how millions of students, makers and engineers learn electronics. It connects code to the physical world."
+          intro="Arduino connects code to the physical world. It is a practical way to learn electronics, inputs, outputs and control."
         />
         <Grid columns={columns}>
           {WHY.map((item) => (
@@ -126,40 +115,18 @@ export function HomeScreen() {
         <SectionTitle
           eyebrow="From breadboard to factory floor"
           title="Every lab is a small version of a real machine"
-          intro="Factories run on the same building blocks you wire up here: buttons and switches, status lights, sensors, motors, and a controller deciding what to do."
+          intro="Factories run on the same building blocks you wire up here: buttons, status lights, sensors, motors and a controller."
         />
         <View style={styles.stat}>
           <Text style={[styles.statNumber, phone && styles.statNumberPhone]}>3.8 million</Text>
           <View style={styles.statCopy}>
             <Text style={text.body}>
-              U.S. manufacturing jobs to fill between 2024 and 2033. About half could go unfilled without enough skilled
-              workers, as factories add sensors, robots and automated controls.
+              U.S. manufacturing jobs to fill by 2033 — and factories keep adding the sensors, robots and controls these
+              labs teach.
             </Text>
             <Text style={[text.small, styles.link]} accessibilityRole="link" onPress={() => Linking.openURL(WORKFORCE_SOURCE)}>
               Deloitte and The Manufacturing Institute, 2024
             </Text>
-          </View>
-        </View>
-        <Grid columns={columns}>
-          {FACTORY_LABS.map((id) => {
-            const lab = labById(id)!;
-            return (
-              <Card key={id} style={styles.pairCard}>
-                <Text style={text.label}>{`LAB ${lab.number} · ${lab.part.toUpperCase()}`}</Text>
-                <Text style={text.h3}>{lab.factory}</Text>
-                <Text style={text.small}>{lab.concept}</Text>
-              </Card>
-            );
-          })}
-        </Grid>
-        <View style={styles.careers}>
-          <Text style={[text.h3, styles.careersTitle]}>Where these skills lead</Text>
-          <View style={styles.chips}>
-            {CAREERS.map((career) => (
-              <View key={career} style={styles.chip}>
-                <Text style={styles.chipText}>{career}</Text>
-              </View>
-            ))}
           </View>
         </View>
       </Band>
@@ -167,9 +134,8 @@ export function HomeScreen() {
       {/* Access */}
       <Band tint>
         <SectionTitle
-          eyebrow="Made for students without a lab"
-          title="Your school doesn’t need an electronics class"
-          intro="Many schools, especially in small and rural towns, don’t teach electronics or engineering, and kits and lab equipment cost money. Circuit Coach gives every student a place to start."
+          eyebrow="Learn without a lab"
+          title="Nothing to buy, nothing to break"
         />
         <Grid columns={columns}>
           {ACCESS.map((item) => (
@@ -197,44 +163,14 @@ export function HomeScreen() {
         </Grid>
       </Band>
 
-      {/* Course outline */}
-      <Band tint>
-        <SectionTitle
-          eyebrow="The course"
-          title="Ten labs, from one LED to a sorting line"
-          intro="Each lab builds on the last and follows what Arduino starter kits teach. Lab 01 is ready now; the rest are on the way."
-        />
-        <Grid columns={columns}>
-          {PHASES.map((phase) => (
-            <Card key={phase}>
-              <Text style={text.label}>{phase.toUpperCase()}</Text>
-              {LABS.filter((lab) => lab.phase === phase).map((lab) => (
-                <View key={lab.id} style={styles.outlineRow}>
-                  <Text style={styles.outlineNumber}>{lab.number}</Text>
-                  <Text style={[text.body, styles.flex]}>{lab.title}</Text>
-                  {lab.ready ? <Text style={styles.ready}>Ready</Text> : null}
-                </View>
-              ))}
-            </Card>
-          ))}
-        </Grid>
-        <View style={[styles.actions, styles.outlineActions, phone && styles.actionsPhone]}>
-          <Button label="See all labs" onPress={allLabs} kind="secondary" />
-        </View>
+      <Band style={styles.developer}>
+        <Text style={[text.small, styles.center]}>Circuit Coach is developed by Vincent Mametjanov.</Text>
       </Band>
-
-      {/* Closing call to action */}
-      <View style={styles.cta}>
-        <Text style={[styles.ctaTitle, phone && styles.h1Phone]}>Ready to build your first circuit?</Text>
-        <Text style={styles.ctaBody}>Lab 01 walks you through blinking an LED on pin 7, step by step.</Text>
-        <Button label="Start Lab 01" onPress={startLab} />
-      </View>
     </SitePage>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   center: { textAlign: 'center' },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 48 },
   heroStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 32 },
@@ -256,19 +192,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tealPale,
     borderRadius: 12,
     padding: 20,
-    marginBottom: 24,
   },
   statNumber: { color: colors.tealDark, fontFamily: fonts.ui, fontSize: 40, fontWeight: '800' },
   statNumberPhone: { fontSize: 32 },
   statCopy: { flex: 1, minWidth: 240, gap: 6 },
   link: { color: colors.tealDark, textDecorationLine: 'underline' },
-  pairCard: { gap: 6 },
-  careers: { marginTop: 32, gap: 12 },
-  careersTitle: { fontSize: 16 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderRadius: 999, borderWidth: 1, borderColor: colors.panelBorder, paddingHorizontal: 14, paddingVertical: 7 },
-  chipText: { color: colors.text, fontFamily: fonts.ui, fontSize: 14 },
   step: { gap: 8 },
+  developer: { paddingVertical: 24 },
   stepNumber: {
     width: 34,
     height: 34,
@@ -279,21 +209,4 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   stepNumberText: { color: '#FFFFFF', fontFamily: fonts.ui, fontSize: 16, fontWeight: '700' },
-  outlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  outlineNumber: { width: 24, color: colors.textMuted, fontFamily: fonts.mono, fontSize: 14 },
-  ready: {
-    color: '#FFFFFF',
-    backgroundColor: colors.success,
-    fontFamily: fonts.ui,
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  outlineActions: { marginTop: 24 },
-  cta: { backgroundColor: colors.titleBar, paddingVertical: 56, paddingHorizontal: 20, alignItems: 'center', gap: 14 },
-  ctaTitle: { color: '#FFFFFF', fontFamily: fonts.ui, fontSize: 32, lineHeight: 40, fontWeight: '800', textAlign: 'center' },
-  ctaBody: { color: colors.tealPale, fontFamily: fonts.ui, fontSize: 17, lineHeight: 25, textAlign: 'center', marginBottom: 8 },
 });

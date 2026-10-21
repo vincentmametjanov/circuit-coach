@@ -30,7 +30,7 @@ void loop() {
 }`;
 
 /** Which supply each outer leg reaches: '5V', 'GND', or null when unwired. */
-function outerSupplies(c: Circuit): [string | null, string | null] | null {
+export function outerSupplies(c: Circuit): [string | null, string | null] | null {
   const legs = c.legNets('pot');
   if (!legs) return null;
   const supply = (net: string) =>
@@ -39,7 +39,7 @@ function outerSupplies(c: Circuit): [string | null, string | null] | null {
 }
 
 /** True when the wiper (middle leg) is what A0 reads. */
-function wiperOnA0(c: Circuit): boolean {
+export function wiperOnA0(c: Circuit): boolean {
   const legs = c.legNets('pot');
   return !!legs && c.wired(WIPER.node) && legs[1] === c.net(WIPER.node);
 }
@@ -61,7 +61,7 @@ export function potReading(c: Circuit, knob: number): number | null {
 }
 
 /** True when the pot is a working divider: one outer leg on 5V, the other on GND, wiper on A0. */
-function dividerWired(c: Circuit): boolean {
+export function dividerWired(c: Circuit): boolean {
   const outer = outerSupplies(c);
   return !!outer && wiperOnA0(c) && outer.includes('5V') && outer.includes('GND');
 }

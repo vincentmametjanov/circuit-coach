@@ -123,6 +123,7 @@ describe('Jumpers from the parts bin', () => {
     const lab = run(BUILD[0], BUILD[1], BUILD[3], { type: 'addWire', pin: null, hole: top(3, 1) });
     expect(texts(lab).at(-1)).toBe('info: Plugged a jumper into b3. Its other end is loose.');
     expect(toBoard(lab).wires).toHaveLength(1);
+    expect(toBoard(lab).links).toEqual([]);
     expect(analyzeCircuit(lab).verdict.title).toBe('Pin 7 isn’t wired yet');
   });
 
