@@ -88,33 +88,56 @@ export const HOLE_PITCH = PITCH * BB_SCALE;
 
 export const BREADBOARD = {
   width: 200,
-  height: 148,
+  height: 170,
   cols: 17,
   firstColX: 20,
-  rowY: [22, 32, 42, 52, 62, 82, 92, 102, 112, 122],
+  rowY: [33, 43, 53, 63, 73, 93, 103, 113, 123, 133],
 };
 
 export const ROW_LETTERS = 'abcdefghij';
 
 export type Hole = { row: number; col: number };
 
-/** Rail rows: −1 is the + rail above row a, 10 is the − rail below row j. */
+/**
+ * Power rails run along both edges, like a real breadboard: a − and a + rail
+ * above row a (rows −2 and −1) and below row j (rows 10 and 11). Every hole in
+ * one rail is connected end to end; the four rails are not connected to each
+ * other.
+ */
+export type Rail = { row: number; sign: '+' | '−'; side: 'top' | 'bottom'; y: number };
+export const RAILS: Rail[] = [
+  { row: -2, sign: '−', side: 'top', y: 5 },
+  { row: -1, sign: '+', side: 'top', y: 15 },
+  { row: 10, sign: '−', side: 'bottom', y: 152 },
+  { row: 11, sign: '+', side: 'bottom', y: 162 },
+];
+/** The two rails the labs use by default: + above row a, − below row j. */
 export const RAIL_TOP = -1;
 export const RAIL_BOTTOM = 10;
 
+export const railAt = (row: number): Rail | undefined => RAILS.find((rail) => rail.row === row);
+export const isRail = (hole: Hole) => railAt(hole.row) !== undefined;
+const railName = (rail: Rail) => `the ${rail.side} ${rail.sign} rail`;
+
 export const holeKey = (hole: Hole) => `${hole.row}:${hole.col}`;
 
-export const holeName = (hole: Hole) =>
-  hole.row === RAIL_TOP ? 'the + rail' : hole.row === RAIL_BOTTOM ? 'the − rail' : `${ROW_LETTERS[hole.row]}${hole.col + 1}`;
+export const holeName = (hole: Hole) => {
+  const rail = railAt(hole.row);
+  return rail ? railName(rail) : `${ROW_LETTERS[hole.row]}${hole.col + 1}`;
+};
 
 export const sameHole = (a: Hole, b: Hole) => a.row === b.row && a.col === b.col;
 
 /** Every hole in one rail shares a single net; strip holes are per column. */
-export const stripId = (hole: Hole) =>
-  hole.row === RAIL_TOP ? 'rail:top' : hole.row === RAIL_BOTTOM ? 'rail:bottom' : `strip:${hole.col}:${hole.row < 5 ? 'top' : 'bottom'}`;
+export const stripId = (hole: Hole) => {
+  const rail = railAt(hole.row);
+  return rail ? `rail:${rail.side}:${rail.sign}` : `strip:${hole.col}:${hole.row < 5 ? 'top' : 'bottom'}`;
+};
 
-export const stripName = (hole: Hole) =>
-  hole.row === RAIL_TOP ? 'the + rail' : hole.row === RAIL_BOTTOM ? 'the − rail' : `column ${hole.col + 1} (rows ${hole.row < 5 ? 'a–e' : 'f–j'})`;
+export const stripName = (hole: Hole) => {
+  const rail = railAt(hole.row);
+  return rail ? railName(rail) : `column ${hole.col + 1} (rows ${hole.row < 5 ? 'a–e' : 'f–j'})`;
+};
 
 // ---------------------------------------------------------------------------
 // Canvas layouts: side by side on wide screens, stacked on phones.
@@ -136,10 +159,10 @@ export const BIN_JUMPER_BOX = { left: -22, right: 22, top: -20, bottom: 14 };
 export const LANDSCAPE: CanvasLayout = {
   id: 'landscape',
   width: 640,
-  height: 334,
-  board: { x: 40, y: 90 },
+  height: 365,
+  board: { x: 40, y: 105 },
   breadboard: { x: 340, y: 18 },
-  bin: { x: 340, y: 228, width: 280, height: 96 },
+  bin: { x: 340, y: 259, width: 280, height: 96 },
   binJumper: { x: 564, y: 274 },
 };
 
@@ -148,11 +171,11 @@ export const LANDSCAPE: CanvasLayout = {
 export const PORTRAIT: CanvasLayout = {
   id: 'portrait',
   width: 300,
-  height: 570,
+  height: 601,
   bin: { x: 14, y: 8, width: 272, height: 96 },
   binJumper: { x: 232, y: 53 },
   breadboard: { x: 10, y: 116 },
-  board: { x: 26, y: 350 },
+  board: { x: 26, y: 381 },
 };
 
 export function fitCanvas(width: number, height: number | null, binRows: 1 | 2 | 3 = 1) {
@@ -174,16 +197,12 @@ export function pinPoint(layout: CanvasLayout, pin: BoardPin): Point {
 }
 
 export function holePoint(layout: CanvasLayout, hole: Hole): Point {
-  const railY = hole.row === RAIL_TOP ? RAIL_TOP_Y : hole.row === RAIL_BOTTOM ? RAIL_BOTTOM_Y : null;
+  const rail = railAt(hole.row);
   return {
     x: layout.breadboard.x + (BREADBOARD.firstColX + hole.col * PITCH) * BB_SCALE,
-    y: layout.breadboard.y + (railY ?? BREADBOARD.rowY[hole.row]) * BB_SCALE,
+    y: layout.breadboard.y + (rail ? rail.y : BREADBOARD.rowY[hole.row]) * BB_SCALE,
   };
 }
-
-/** Rail rows sit just outside the a–j grid, in breadboard units. */
-export const RAIL_TOP_Y = 4;
-export const RAIL_BOTTOM_Y = 142;
 
 
 /** Extra height each additional row of parts adds to the bin. */
@@ -249,12 +268,11 @@ export function nearestHole(layout: CanvasLayout, p: Point, maxDistance = HOLE_P
   const col = Math.round(((p.x - layout.breadboard.x) / BB_SCALE - BREADBOARD.firstColX) / PITCH);
   if (col < 0 || col >= BREADBOARD.cols) return null;
   const localY = (p.y - layout.breadboard.y) / BB_SCALE;
-  const rows = [RAIL_TOP_Y, ...BREADBOARD.rowY, RAIL_BOTTOM_Y];
-  let index = 0;
-  rows.forEach((y, i) => {
-    if (Math.abs(y - localY) < Math.abs(rows[index] - localY)) index = i;
-  });
-  const hole = { row: index - 1, col };
+  // Every hole row, top rails first, with the row number it stands for.
+  const rows = [...RAILS.filter((r) => r.side === 'top'), ...BREADBOARD.rowY.map((y, row) => ({ y, row })), ...RAILS.filter((r) => r.side === 'bottom')];
+  let nearest = rows[0];
+  for (const r of rows) if (Math.abs(r.y - localY) < Math.abs(nearest.y - localY)) nearest = r;
+  const hole = { row: nearest.row, col };
   const center = holePoint(layout, hole);
   return Math.hypot(center.x - p.x, center.y - p.y) <= maxDistance ? hole : null;
 }

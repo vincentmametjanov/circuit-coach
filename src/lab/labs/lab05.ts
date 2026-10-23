@@ -1,5 +1,5 @@
 // Lab 05: Dimmer and color mixer. The Lab 04 pot on A0 sets the PWM duty on
-// pin ~9, dimming the LED — the same average-power trick a VFD uses for motor
+// pin ~9, dimming the LED. It is the same average-power trick a VFD uses for motor
 // speed and a heater controller uses for power. Extension: an RGB LED on
 // ~9/~10/~11 mixes colors from the same knob.
 
@@ -19,7 +19,7 @@ const CHANNELS = [
   { name: 'blue', leg: 3, resistor: 'resistorB', signal: { node: 'D11', name: 'pin ~11' } },
 ];
 
-const SKETCH = `// dimmer.ino — Lab 05
+const SKETCH = `// dimmer.ino: Lab 05
 // The knob on A0 sets the brightness of the LED on pin ~9 (PWM).
 
 const int DIAL_PIN = A0;
@@ -58,7 +58,7 @@ export function mixFor(knob: number): { r: number; g: number; b: number } {
 
 export const LAB05: LabDef = {
   id: 'lab05',
-  title: 'Lab 05 · Dimmer and color mixer',
+  title: 'Lab 05: Dimmer and color mixer',
   sketch: { name: 'dimmer', code: SKETCH, highlightLine: 11 },
   parts: [
     { def: 'pot', id: 'pot', name: '10 kΩ potentiometer' },
@@ -103,7 +103,7 @@ export const LAB05: LabDef = {
                 detail: 'Drag it back to the parts bin for a fresh one, and keep its 220 Ω resistor in the loop this time.',
               }
             : null;
-        // Common cathode wired to 5V: every channel lights backwards — or worse.
+        // Common cathode wired to 5V: every channel lights backwards, or worse.
         case 'rgbCommonHigh': {
           const legs = c.legNets('rgbLed');
           if (!legs || !c.wired('5V') || legs[1] !== c.net('5V')) return null;
@@ -237,6 +237,13 @@ export const LAB05: LabDef = {
     success: 'Turn the knob: the LED dims smoothly from dark to full brightness. Lab 05 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { pot: { row: 0, col: 2 }, resistor: { row: 0, col: 8 }, led: { row: 2, col: 11 }, rgbLed: { row: 0, col: 13 }, resistorR: { row: 5, col: 0 }, resistorG: { row: 5, col: 5 }, resistorB: { row: 5, col: 10 } },
+    wires: [['5V', { row: 1, col: 2 }], ['A0', { row: 1, col: 4 }], ['GND_T', { row: 1, col: 6 }], ['D9', { row: 1, col: 8 }], ['GND_P1', { row: 4, col: 12 }], ['D10', { row: 6, col: 5 }], ['D11', { row: 6, col: 10 }], ['GND_P2', { row: 1, col: 14 }]],
+    links: [[{ row: 4, col: 8 }, { row: 6, col: 0 }], [{ row: 8, col: 3 }, { row: 2, col: 13 }], [{ row: 8, col: 8 }, { row: 2, col: 15 }], [{ row: 8, col: 13 }, { row: 2, col: 16 }]],
+  },
+
   steps: [
     {
       id: 'dial',
@@ -256,7 +263,7 @@ export const LAB05: LabDef = {
     {
       id: 'upload',
       title: 'Upload and turn the knob',
-      detail: 'The brightness follows the dial — smoothly, not just on and off.',
+      detail: 'The brightness follows the dial smoothly, not just on and off.',
     },
     {
       id: 'rgb',
@@ -272,23 +279,23 @@ export const LAB05: LabDef = {
     explainers: [
       {
         title: 'PWM: fake analog with a digital pin',
-        body: 'analogWrite(9, 128) switches pin 9 on and off 490 times a second, on for half of each cycle. The LED — like a motor — averages it: half the power, half the brightness. The duty cycle (0–255) is the knob’s position divided by 4.',
+        body: 'analogWrite(9, 128) switches pin 9 on and off 490 times a second, on for half of each cycle. The LED, like a motor, averages it: half the power, half the brightness. The duty cycle (0–255) is the knob’s position divided by 4.',
       },
       {
         title: 'Why only the ~ pins',
-        body: 'Pulse-width modulation needs a hardware timer behind the pin. On the Uno only 3, 5, 6, 9, 10 and 11 have one — they’re the pins marked ~ on the silkscreen. Any other pin ignores analogWrite and just snaps HIGH or LOW.',
+        body: 'Pulse-width modulation needs a hardware timer behind the pin. On the Uno only 3, 5, 6, 9, 10 and 11 have one. They are the pins marked ~ on the board. Any other pin ignores analogWrite and just snaps HIGH or LOW.',
       },
       {
         title: 'On the factory floor',
-        body: 'A variable-frequency drive runs a conveyor motor by switching power in fast pulses, exactly like your pin ~9 — average voltage sets the speed. Heater controllers do the same for power.',
+        body: 'A variable-frequency drive runs a conveyor motor by switching power in fast pulses, exactly like your pin ~9. The average voltage sets the speed. Heater controllers do the same for power.',
       },
     ],
     proTip: {
       title: 'Pro tip: three channels make any color',
-      body: 'The RGB LED is three LEDs in one dome. A second analogWrite per channel (pins ~9, ~10, ~11) mixes any color — indicator panels use this so one lamp can show every machine state.',
+      body: 'The RGB LED is three LEDs in one dome. A second analogWrite per channel (pins ~9, ~10, ~11) mixes any color. Indicator panels use this so one lamp can show every machine state.',
     },
   },
-  next: { id: 'lab06', title: 'Lab 06 · Part counter' },
+  next: { id: 'lab06', title: 'Lab 06: Part counter' },
 };
 
 function knobOf(state: { behavior: Record<string, unknown> }): number {

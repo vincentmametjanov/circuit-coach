@@ -101,6 +101,10 @@ The Output console says only what happened. When something is wired wrong (a sho
 
 The rule checker intentionally uses fixed electrical rules rather than AI guidance. It merges breadboard strips and jumpers into nets, then looks for a pin 7 → resistor → LED → GND loop. It explains common mistakes: a backwards LED, a missing resistor (the LED burns out), the wrong pin, 5V instead of pin 7, short circuits, and parts that don't share a strip.
 
+## Progress and solutions
+
+Progress is saved on the device (browser storage on the web, app storage on iOS and Android): each lab's bench comes back the way it was left, and finished labs show "Completed" on the labs page. Nothing is sent anywhere. Every lab has a "Show solution" link in its guide that opens a picture of one correct build, with the option to put it on the bench. The solutions live in each lab file under `solution` and are checked by `src/lab/__tests__/solutions.test.ts`.
+
 ## Tests
 
 ```sh
@@ -116,19 +120,20 @@ Expo Router pages for the web and mobile apps:
 - `/` (`src/app/index.tsx`): homepage: what Circuit Coach is, why learn Arduino, how it connects to manufacturing and engineering
 - `/labs` (`src/app/labs/index.tsx`): all twelve labs grouped by phase
 - `/labs/[id]` (`src/app/labs/[id].tsx`): opens a ready lab; others redirect to `/labs`
+- `/play` (`src/app/play.tsx`): the open bench, free play with every part
 
 The course outline lives in `src/lab/catalog.ts`; set `ready: true` when a lab ships. Page layout pieces (header, bands, grid, buttons) are in `src/components/site/`. Layouts switch at 640 px (phone to tablet) and 960 px (tablet to desktop).
 
 Reusable circuit simulations and UI components belong outside `src/app/`.
 
-- `src/lab/engine/circuit.ts` — the netlist: breadboard strips, power rails, pin jumpers and breadboard jumpers merged into nets (union-find), plus series-path search through parts
-- `src/lab/engine/ledLoop.ts` — reusable checks for LED-and-resistor loops (shorts, missing resistor, backwards LED, wrong pin)
-- `src/lab/labs/` — one file per lab (`LabDef` in `src/lab/lab.ts`): parts bin, sketch, ordered verdict checks with their wording, guide steps, and the behavior model that runs while the sketch is uploaded. Register new labs in `src/lab/labs/index.ts` and set `ready: true` in the catalog
-- `src/lab/runtime.ts` — the shared reducer every lab runs on: the Output console, mistakes flagged once as they happen, LED glow and burn-out computed from the wiring and the pins the sketch drives HIGH, and the Serial Monitor
-- `src/lab/parts.ts` — the parts catalog (leg patterns, polarity, buttons' internal contacts) and how identical parts stack in the bin
-- `src/lab/geometry.ts` — board, breadboard, rail and canvas coordinates (no UI)
-- `src/components/workbench/` — SVG drawings of the Uno, breadboard and parts, plus drag-and-drop
-- `src/components/ide/` — the IDE-style toolbar, tabs, guide panel, sketch view and Output console
+- `src/lab/engine/circuit.ts`: the netlist: breadboard strips, power rails, pin jumpers and breadboard jumpers merged into nets (union-find), plus series-path search through parts
+- `src/lab/engine/ledLoop.ts`: reusable checks for LED-and-resistor loops (shorts, missing resistor, backwards LED, wrong pin)
+- `src/lab/labs/`: one file per lab (`LabDef` in `src/lab/lab.ts`): parts bin, sketch, ordered verdict checks with their wording, guide steps, and the behavior model that runs while the sketch is uploaded. Register new labs in `src/lab/labs/index.ts` and set `ready: true` in the catalog
+- `src/lab/runtime.ts`: the shared reducer every lab runs on: the Output console, mistakes flagged once as they happen, LED glow and burn-out computed from the wiring and the pins the sketch drives HIGH, and the Serial Monitor
+- `src/lab/parts.ts`: the parts catalog (leg patterns, polarity, buttons' internal contacts) and how identical parts stack in the bin
+- `src/lab/geometry.ts`: board, breadboard, rail and canvas coordinates (no UI)
+- `src/components/workbench/`: the bench. `Workbench.tsx` holds the drag-and-drop state and drop rules; `dragging.ts` has the pure helpers (where parts anchor, which holes are taken); `DragHandle.tsx` is the touch target that works for mouse and finger; `overlays.tsx` draws each part, the drop preview and the floating tag; `Parts.tsx`, `Breadboard.tsx` and `ArduinoUno.tsx` are the SVG artwork
+- `src/components/ide/`: the IDE-style toolbar, tabs, guide panel, sketch view and Output console
 
 ## Issues and contributing
 

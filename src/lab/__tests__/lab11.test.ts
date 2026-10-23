@@ -1,5 +1,5 @@
 // Lab 11 tests: the stepper driver's step/direction wiring and the homing
-// routine — trip the limit switch in time, or the axis runs past it.
+// routine: trip the limit switch in time, or the axis runs past it.
 
 import { describe, expect, it } from 'vitest';
 

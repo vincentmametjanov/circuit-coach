@@ -40,7 +40,7 @@ export function partLegs(def: PartDefId, start: Hole): Hole[] {
   }
   const { rowGap, colSpan } = pattern;
   // Dropped in the top half, the legs straddle the center gap. Dropped in the
-  // bottom half, the button lies flat along one row — the classic mistake that
+  // bottom half, the button lies flat along one row, the classic mistake that
   // makes it read “always pressed”: legs 0,1 are side A, legs 2,3 side B, and
   // all four share the one strip.
   if (start.row >= 5) {
@@ -131,7 +131,7 @@ export const PART_DEFS: Record<PartDefId, PartDef> = {
       [0, 2],
       [1, 3],
     ],
-    box: { left: -30, right: 30, top: -16, bottom: 26 },
+    box: { left: -30, right: 30, top: -26, bottom: 26 },
   },
   pot: {
     id: 'pot',

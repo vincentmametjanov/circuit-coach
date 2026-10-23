@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { G, Rect, Text } from 'react-native-svg';
 
-import { BB_SCALE, BREADBOARD, type CanvasLayout, PITCH, RAIL_BOTTOM_Y, RAIL_TOP_Y, ROW_LETTERS, type Point } from '../../lab/geometry';
+import { BB_SCALE, BREADBOARD, type CanvasLayout, PITCH, RAILS, ROW_LETTERS, type Point } from '../../lab/geometry';
 import { fonts } from '../../theme';
 
 const { cols, firstColX, rowY, width, height } = BREADBOARD;
@@ -14,26 +14,29 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
     <G transform={`translate(${origin.x} ${origin.y}) scale(${BB_SCALE})`}>
       <Rect x={2.5} y={3.5} width={width} height={height} rx={6} fill="#000" opacity={0.12} />
       <Rect x={0} y={0} width={width} height={height} rx={6} fill="#F8F6F0" stroke="#D9D3C4" strokeWidth={1} />
-      <Rect x={5} y={69} width={width - 10} height={6} rx={2} fill="#E3DED0" />
+      <Rect x={5} y={80} width={width - 10} height={6} rx={2} fill="#E3DED0" />
 
-      {/* Power rails: every hole in the red (+) or blue (−) row is connected. */}
-      {(
-        [
-          { y: RAIL_TOP_Y, color: '#C0392B', sign: '+' },
-          { y: RAIL_BOTTOM_Y, color: '#2471A3', sign: '−' },
-        ] as const
-      ).map((rail) => (
-        <G key={rail.sign}>
-          <Rect x={colX(0) - 4} y={rail.y - 2.4} width={colX(cols - 1) - colX(0) + 8} height={4.8} rx={2.4} fill="#EFEBE1" />
-          {columns.map((col) => (
-            <Rect key={col} x={colX(col) - 1.9} y={rail.y - 1.9} width={3.8} height={3.8} rx={0.6} fill="#4A4744" />
-          ))}
-          <Rect x={colX(0) - 4} y={rail.y + (rail.sign === '+' ? 3.6 : -5.6)} width={colX(cols - 1) - colX(0) + 8} height={2} fill={rail.color} />
-          <Text x={8} y={rail.y + 2.2} fontSize={6} fontWeight="700" fill={rail.color} textAnchor="middle" fontFamily={fonts.svg}>
-            {rail.sign}
-          </Text>
-        </G>
-      ))}
+      {/* Power rails on both edges: every hole in a red (+) or blue (−) row is connected end to end. */}
+      {RAILS.map((rail) => {
+        const color = rail.sign === '+' ? '#C0392B' : '#2471A3';
+        // The colored line sits on the outer side of each rail.
+        const lineY = rail.side === 'top' ? (rail.sign === '−' ? rail.y - 5.4 : rail.y + 3.6) : rail.sign === '−' ? rail.y - 5.4 : rail.y + 3.6;
+        return (
+          <G key={rail.row}>
+            <Rect x={colX(0) - 4} y={rail.y - 2.4} width={colX(cols - 1) - colX(0) + 8} height={4.8} rx={2.4} fill="#EFEBE1" />
+            {columns.map((col) => (
+              <Rect key={col} x={colX(col) - 1.9} y={rail.y - 1.9} width={3.8} height={3.8} rx={0.6} fill="#4A4744" />
+            ))}
+            <Rect x={colX(0) - 4} y={lineY} width={colX(cols - 1) - colX(0) + 8} height={1.6} fill={color} />
+            <Text x={8} y={rail.y + 2.2} fontSize={6} fontWeight="700" fill={color} textAnchor="middle" fontFamily={fonts.svg}>
+              {rail.sign}
+            </Text>
+            <Text x={width - 8} y={rail.y + 2.2} fontSize={6} fontWeight="700" fill={color} textAnchor="middle" fontFamily={fonts.svg}>
+              {rail.sign}
+            </Text>
+          </G>
+        );
+      })}
 
       {/* Faint strip outlines: each column of five holes is connected underneath. */}
       {columns.map((col) => (
@@ -59,10 +62,10 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
 
       {columns.map((col) => (
         <G key={`num-${col}`}>
-          <Text x={colX(col)} y={12} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
+          <Text x={colX(col)} y={25.5} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
             {col + 1}
           </Text>
-          <Text x={colX(col)} y={133.5} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
+          <Text x={colX(col)} y={144.5} fontSize={5} fill="#8C8577" textAnchor="middle" fontFamily={fonts.svg}>
             {col + 1}
           </Text>
         </G>
@@ -149,7 +152,7 @@ export const PartsBin = memo(function PartsBin({
         Jumper wires
       </Text>
       <Text x={bin.x + 10} y={bin.y + bin.height - 7} fontSize={5.6} fill="#7F8C8D" fontFamily={fonts.svg}>
-        Drag a part onto the breadboard · tap any part to learn what it is
+        Drag a part onto the breadboard. Tap any part to learn what it is.
       </Text>
     </G>
   );

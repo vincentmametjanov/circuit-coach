@@ -1,6 +1,6 @@
 // Open bench (free play) tests: every part kind is in the bin, the bench
-// passes by default, shorts are still flagged, and live supplies light — or
-// burn out — LEDs exactly like a real powered board with no sketch.
+// passes by default, shorts are still flagged, and live supplies light (or
+// burn out) LEDs exactly like a real powered board with no sketch.
 
 import { describe, expect, it } from 'vitest';
 
@@ -38,7 +38,7 @@ describe('Open bench contents', () => {
 });
 
 describe('Open bench verdicts', () => {
-  it('passes an empty bench — free play has no wiring goal', () => {
+  it('passes an empty bench: free play has no wiring goal', () => {
     expect(verdict(bench({})).code).toBe('pass');
   });
 

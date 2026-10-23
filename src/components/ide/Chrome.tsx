@@ -23,33 +23,33 @@ type ToolbarProps = {
   onReset: () => void;
   /** Leaves the lab for the homepage. */
   onHome?: () => void;
+  /** Opens the list of all labs. */
+  onLabs?: () => void;
+  /** Opens the free-play bench. */
+  onBench?: () => void;
 };
 
 /** Teal toolbar with round Verify / Upload buttons, like the Arduino IDE. */
-export function Toolbar({ busy, compact, running, onVerify, onUpload, onReset, onHome }: ToolbarProps) {
+export function Toolbar({ busy, compact, running, onVerify, onUpload, onReset, onHome, onLabs, onBench }: ToolbarProps) {
   const [hover, setHover] = useState<string | null>(null);
   return (
     <View style={styles.toolbar}>
-      {onHome ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="Circuit Coach home"
-          onPress={onHome}
-          style={({ pressed, hovered }) => [styles.resetButton, (pressed || hovered) && styles.resetButtonActive]}
-        >
-          <Icon name="home" size={18} color={colors.tealPale} />
-          {!compact ? <Text style={styles.resetText}>Home</Text> : null}
-        </Pressable>
-      ) : null}
+      {onHome ? <LinkButton icon="home" label="Home" compact={compact} onPress={onHome} /> : null}
+      {onLabs ? <LinkButton icon="guide" label="All labs" compact={compact} onPress={onLabs} /> : null}
+      {onBench ? <LinkButton icon="board" label="Open bench" compact={compact} onPress={onBench} /> : null}
+      <View style={styles.divider} />
       <RoundButton icon="verify" label="Verify" disabled={busy} onPress={onVerify} onHover={setHover} />
       <RoundButton icon="upload" label="Upload" disabled={busy} onPress={onUpload} onHover={setHover} />
       {!compact ? <Text style={styles.hoverLabel}>{hover ?? ''}</Text> : null}
 
-      <View style={styles.boardPill}>
+      {/* The board pill: full on wide screens, just the plug icon and the live dot on phones. */}
+      <View style={styles.boardPill} accessibilityLabel={running ? 'Arduino Uno, sketch running' : 'Arduino Uno'}>
         <Icon name="usb" size={14} color={colors.tealPale} />
-        <Text style={styles.boardText} numberOfLines={1}>
-          Arduino Uno
-        </Text>
+        {!compact ? (
+          <Text style={styles.boardText} numberOfLines={1}>
+            Arduino Uno
+          </Text>
+        ) : null}
         {!compact ? <Text style={styles.portText}>sim-usb0</Text> : null}
         <View style={[styles.portDot, running && styles.portDotLive]} />
       </View>
@@ -66,6 +66,21 @@ export function Toolbar({ busy, compact, running, onVerify, onUpload, onReset, o
         {!compact ? <Text style={styles.resetText}>Reset lab</Text> : null}
       </Pressable>
     </View>
+  );
+}
+
+/** A small text link in the toolbar (Home, All labs, Open bench). Icon only on phones. */
+function LinkButton({ icon, label, compact, onPress }: { icon: IconName; label: string; compact: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed, hovered }) => [styles.resetButton, (pressed || hovered) && styles.resetButtonActive]}
+    >
+      <Icon name={icon} size={16} color={colors.tealPale} />
+      {!compact ? <Text style={styles.resetText}>{label}</Text> : null}
+    </Pressable>
   );
 }
 
@@ -137,21 +152,33 @@ export function ActivityBar({
   active: string[];
   onSelect: (id: string) => void;
 }) {
+  // The item under the mouse shows its name in a small tooltip to its right.
+  const [hovered, setHovered] = useState<string | null>(null);
   return (
     <View style={styles.activityBar}>
       {items.map((item) => {
         const on = active.includes(item.id);
         return (
-          <Pressable
-            key={item.id}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-            onPress={() => onSelect(item.id)}
-            style={({ hovered }) => [styles.activityItem, hovered && styles.activityItemHover]}
-          >
-            <View style={[styles.activityIndicator, on && styles.activityIndicatorOn]} />
-            <Icon name={item.icon} size={22} color={on ? colors.teal : colors.textMuted} />
-          </Pressable>
+          <View key={item.id}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              onPress={() => onSelect(item.id)}
+              onHoverIn={() => setHovered(item.id)}
+              onHoverOut={() => setHovered((h) => (h === item.id ? null : h))}
+              style={({ hovered: over }) => [styles.activityItem, over && styles.activityItemHover]}
+            >
+              <View style={[styles.activityIndicator, on && styles.activityIndicatorOn]} />
+              <Icon name={item.icon} size={22} color={on ? colors.teal : colors.textMuted} />
+            </Pressable>
+            {hovered === item.id ? (
+              <View style={styles.tooltip} pointerEvents="none">
+                <Text style={styles.tooltipText} numberOfLines={1}>
+                  {item.label}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         );
       })}
     </View>
@@ -295,6 +322,7 @@ const styles = StyleSheet.create({
   },
   activityBar: {
     width: 48,
+    zIndex: 30,
     backgroundColor: colors.activityBar,
     borderRightWidth: 1,
     borderRightColor: colors.panelBorder,
@@ -319,6 +347,31 @@ const styles = StyleSheet.create({
   },
   activityIndicatorOn: {
     backgroundColor: colors.teal,
+  },
+  tooltip: {
+    position: 'absolute',
+    left: 52,
+    top: 12,
+    alignSelf: 'flex-start',
+    minWidth: 120,
+    zIndex: 30,
+    backgroundColor: colors.titleBar,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tooltipText: {
+    color: colors.tealPale,
+    fontFamily: fonts.ui,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  divider: {
+    width: 1,
+    height: 22,
+    marginHorizontal: 4,
+    backgroundColor: colors.toolbarButton,
+    opacity: 0.6,
   },
   statusBar: {
     minHeight: 24,

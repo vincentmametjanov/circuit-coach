@@ -127,9 +127,9 @@ describe('Lab 07 while running', () => {
     state = run(state, { type: 'control', id: 'temp', value: 0.6 }); // 34 °C
     expect(state.behavior.alarm).toBe(true);
     expect(state.log.some((line) => line.text.startsWith('ALARM: 34.0 °C'))).toBe(true);
-    state = run(state, { type: 'control', id: 'temp', value: 0.475 }); // 29 °C — still in the band
+    state = run(state, { type: 'control', id: 'temp', value: 0.475 }); // 29 °C, still in the band
     expect(state.behavior.alarm).toBe(true);
-    state = run(state, { type: 'control', id: 'temp', value: 0.4 }); // 26 °C — clears
+    state = run(state, { type: 'control', id: 'temp', value: 0.4 }); // 26 °C, clears
     expect(state.behavior.alarm).toBe(false);
     expect(state.log.some((line) => line.text.startsWith('Alarm cleared'))).toBe(true);
   });

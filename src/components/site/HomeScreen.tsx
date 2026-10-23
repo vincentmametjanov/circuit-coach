@@ -39,7 +39,7 @@ const allLabs = () => router.navigate('/labs');
 const WHY = [
   {
     title: 'Code that moves things',
-    body: 'Read buttons and sensors, switch lights and motors — programs you can see working.',
+    body: 'Read buttons and sensors, switch lights and motors. Programs you can see working.',
   },
   {
     title: 'The ideas behind every machine',
@@ -47,12 +47,12 @@ const WHY = [
   },
   {
     title: 'A first step into engineering',
-    body: 'Circuits, Ohm’s law and code that reacts to the world — where electrical, mechanical and software engineering meet.',
+    body: 'Circuits, Ohm’s law and code that reacts to the world. It is where electrical, mechanical and software engineering meet.',
   },
 ];
 
 const ACCESS = [
-  { title: 'Nothing to buy', body: 'No board, no parts, no lab room. Mistakes cost nothing — even a burned-out LED.' },
+  { title: 'Nothing to buy', body: 'No board, no parts, no lab room. Mistakes cost nothing, even a burned-out LED.' },
   { title: 'Runs on what you have', body: 'Works in a browser on a laptop, iPad or iPhone.' },
   { title: 'Real kit, real skills', body: 'The same parts as standard Arduino starter kits, so your circuits work on real hardware.' },
 ];
@@ -73,7 +73,7 @@ export function HomeScreen() {
       {/* Hero */}
       <Band style={[styles.hero, !screen.wide && styles.heroStacked]}>
         <View style={[styles.heroText, screen.wide && styles.half]}>
-          <Text style={text.label}>FREE · IN ANY BROWSER · ON IPAD AND IPHONE</Text>
+          <Text style={text.label}>Free. Works in any browser, and on iPad and iPhone.</Text>
           <Text style={[styles.h1, phone && styles.h1Phone]} accessibilityRole="header">
             Learn Arduino without a lab.
           </Text>
@@ -121,7 +121,7 @@ export function HomeScreen() {
           <Text style={[styles.statNumber, phone && styles.statNumberPhone]}>3.8 million</Text>
           <View style={styles.statCopy}>
             <Text style={text.body}>
-              U.S. manufacturing jobs to fill by 2033 — and factories keep adding the sensors, robots and controls these
+              U.S. manufacturing jobs to fill by 2033, and factories keep adding the sensors, robots and controls these
               labs teach.
             </Text>
             <Text style={[text.small, styles.link]} accessibilityRole="link" onPress={() => Linking.openURL(WORKFORCE_SOURCE)}>

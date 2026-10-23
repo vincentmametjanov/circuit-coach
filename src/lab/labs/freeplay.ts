@@ -8,11 +8,11 @@
 import { findShort } from '../engine/ledLoop';
 import type { LabDef } from '../lab';
 
-const SKETCH = `// free_play.ino — the open bench
+const SKETCH = `// free_play.ino: the open bench
 // No sketch is running. On a real board with nothing uploaded:
 //   - 5V, 3.3V and GND are live the moment power is connected
 //   - every I/O pin sits as a high-impedance input
-// So circuits wired from a supply pin work right now — an LED with
+// So circuits wired from a supply pin work right now. An LED with
 // its resistor lights, and one without pops. Pins do nothing until
 // you pick a lab and upload its sketch.
 //
@@ -23,7 +23,7 @@ export const FREEPLAY_CATEGORIES = ['Resistors', 'Lights', 'Buttons & knobs', 'S
 
 export const FREEPLAY: LabDef = {
   id: 'play',
-  title: 'Open bench · Free play',
+  title: 'Open bench: Free play',
   sketch: { name: 'free_play', code: SKETCH },
   parts: [
     { def: 'resistor', id: 'r1', category: 'Resistors' },
@@ -90,14 +90,14 @@ export const FREEPLAY: LabDef = {
 
   behavior: {
     tickMs: 250,
-    success: 'The bench is live. Drag parts, wire them up, turn knobs and press buttons — mistakes cost nothing here.',
+    success: 'The bench is live. Drag parts, wire them up, turn knobs and press buttons. Mistakes cost nothing here.',
   },
 
   steps: [
     {
       id: 'explore',
       title: 'Build anything',
-      detail: 'Every part from the labs is in the bin. Try an LED on 5V (don’t skip the resistor), a button, the motor on the battery — then build it on real hardware.',
+      detail: 'Every part from the labs is in the bin. Try an LED on 5V (don’t skip the resistor), a button, the motor on the battery. Then build it on real hardware.',
     },
   ],
 
@@ -115,7 +115,7 @@ export const FREEPLAY: LabDef = {
       },
       {
         title: 'The coach still watches',
-        body: 'Shorts between supplies are flagged the moment you make them, and an LED with no resistor still burns out. Everything else is fair game — wire it, tap a part to learn what it is, and pull it apart again.',
+        body: 'Shorts between supplies are flagged the moment you make them, and an LED with no resistor still burns out. Everything else is fair game. Wire it, tap a part to learn what it is, and pull it apart again.',
       },
       {
         title: 'A habit worth keeping',
@@ -124,7 +124,7 @@ export const FREEPLAY: LabDef = {
     ],
     proTip: {
       title: 'Pro tip: the labs are recipes',
-      body: 'Stuck for ideas? Rebuild a lab circuit from memory — the stack light from Lab 03 or the motor drive from Lab 09 — then change something and see what happens.',
+      body: 'Stuck for ideas? Rebuild a lab circuit from memory, like the stack light from Lab 03 or the motor drive from Lab 09. Then change something and see what happens.',
     },
   },
 };

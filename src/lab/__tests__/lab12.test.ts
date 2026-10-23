@@ -1,5 +1,5 @@
-// Lab 12 tests (capstone): the four subsystems — sensor divider, servo gate,
-// stack light, pause button — and the sense → decide → actuate loop itself.
+// Lab 12 tests (capstone): the four subsystems (sensor divider, servo gate,
+// stack light, pause button) and the sense → decide → actuate loop itself.
 
 import { describe, expect, it } from 'vitest';
 
@@ -113,7 +113,7 @@ describe('Lab 12 verdicts', () => {
   });
 
   it('flags the pause button floating', () => {
-    // No pull-down — and no dangling link from the button's far side to the rail.
+    // No pull-down, and no dangling link from the button's far side to the rail.
     const v = verdict(
       bench({
         ...LAYOUT,
@@ -134,15 +134,15 @@ describe('Lab 12 while running', () => {
     actions.reduce((s, a) => runtimeReducer(LAB12, s, a), state);
   const start = (b: BenchState) => run({ ...createLabStore(LAB12).state, ...b }, { type: 'uploadDone' });
 
-  it('sorts boxes: the first is light, the second dark — the gate opens', () => {
+  it('sorts boxes: the first is light, the second dark, so the gate opens', () => {
     // The runtime's seeded random makes the second box dark. One cycle is 10
     // ticks; the decision lands on phase 6.
     let state = start(GOOD);
     expect(state.log.at(-1)?.kind).toBe('success');
     for (let i = 0; i < 6; i += 1) state = run(state, { type: 'tick' });
-    expect(state.serial.at(-1)).toBe('Box 1: light — passes  (sorted 0 dark, 1 light)');
+    expect(state.serial.at(-1)).toBe('Box 1: light, passes  (sorted 0 dark, 1 light)');
     for (let i = 0; i < 10; i += 1) state = run(state, { type: 'tick' });
-    expect(state.serial.at(-1)).toBe('Box 2: dark — gate opens  (sorted 1 dark, 1 light)');
+    expect(state.serial.at(-1)).toBe('Box 2: dark, gate opens  (sorted 1 dark, 1 light)');
     expect(state.behavior.servo).toBe(90);
     expect(LAB12.behavior.outputs!(LAB12, { lab: LAB12, state })).toEqual(['D5', 'D7']);
   });

@@ -1,6 +1,6 @@
-import { memo, useMemo, useRef, useState } from 'react';
-import { type GestureResponderEvent, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import Svg, { Circle, Defs, G, Pattern, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Defs, G, Pattern, RadialGradient, Stop } from 'react-native-svg';
 
 import {
   BB_SCALE,
@@ -8,12 +8,8 @@ import {
   BOARD_LEDS,
   BOARD_SIZE,
   BREADBOARD,
-  HOLE_PITCH,
-  type CanvasLayout,
   type Hole,
   PIN_BY_ID,
-  RAIL_BOTTOM,
-  RAIL_TOP,
   BIN_PART_SCALE,
   binSlotPoints,
   headerRegions,
@@ -25,39 +21,19 @@ import {
   nearestPin,
   pinPoint,
   sameHole,
+  type CanvasLayout,
   type Point,
 } from '../../lab/geometry';
 import type { LabDef } from '../../lab/lab';
-import { PART_DEFS, binGroups, partLegs, type PartSpec } from '../../lab/parts';
+import { PART_DEFS, binGroups } from '../../lab/parts';
 import type { RuntimeAction, RuntimeState } from '../../lab/runtime';
 import type { ComponentId } from '../../lab/components';
 import { colors } from '../../theme';
-import { ArduinoUno } from './ArduinoUno';
-import { Breadboard, PartsBin } from './Breadboard';
-import {
-  BANDS_10K,
-  Battery,
-  BinJumpers,
-  Buzzer,
-  Diode,
-  JumperWire,
-  LOOSE_WIRE,
-  Led,
-  type LedGlow,
-  Ldr,
-  LooseEnd,
-  Motor,
-  Pot,
-  Pushbutton,
-  Resistor,
-  RgbLed,
-  Servo,
-  Stepper,
-  Tag,
-  Tmp36,
-  Transistor,
-  wireColor,
-} from './Parts';
+import { BinPicker } from './BinPicker';
+import { DragHandle, webNoSelect } from './DragHandle';
+import { type Drag, anchorFor, breadboardWireColor, defOf, displayName, loosePoint, occupancy, partDrop } from './dragging';
+import { BoardLight, DragTag, DropPreview, PartView, StaticScene } from './overlays';
+import { JumperWire, LOOSE_WIRE, type LedGlow, LooseEnd, wireColor } from './Parts';
 
 type Props = {
   layout: CanvasLayout;
@@ -74,87 +50,7 @@ type Props = {
   onInspect?: (id: ComponentId) => void;
 };
 
-type Drag =
-  | { kind: 'part'; part: string; origin: Point; at: Point }
-  | { kind: 'binWire'; origin: Point; at: Point }
-  | { kind: 'newWire'; pin: string; origin: Point; at: Point }
-  | { kind: 'wirePin'; wireId: string; origin: Point; at: Point }
-  | { kind: 'wireHole'; wireId: string; origin: Point; at: Point }
-  /** The second end of a breadboard-to-breadboard jumper. */
-  | { kind: 'wireHole2'; wireId: string; origin: Point; at: Point }
-  /** Turning the potentiometer's knob while the sketch runs. */
-  | { kind: 'knob'; part: string; start: number; origin: Point; at: Point };
-
 const TAP_SLOP = 4;
-const OK = colors.teal;
-const BAD = colors.danger;
-
-const specOf = (lab: LabDef, id: string): PartSpec => lab.parts.find((p) => p.id === id)!;
-const defOf = (lab: LabDef, id: string) => PART_DEFS[specOf(lab, id).def];
-const displayName = (lab: LabDef, id: string) => specOf(lab, id).name ?? defOf(lab, id).name;
-
-/** Where a part's artwork is anchored: the midpoint of its outermost legs. */
-function anchorFor(layout: CanvasLayout, lab: LabDef, id: string, start: Hole): Point {
-  const legs = partLegs(specOf(lab, id).def, start);
-  const points = legs.map((hole) => holePoint(layout, hole));
-  const x = (Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
-  const y = (Math.min(...points.map((p) => p.y)) + Math.max(...points.map((p) => p.y))) / 2;
-  // Resistors and LEDs anchor on their row; the button centers over its legs.
-  return defOf(lab, id).pressable ? { x, y } : { x, y: points[0].y };
-}
-
-/** Which holes are in use, and by what, optionally ignoring the item being dragged. */
-function occupancy(lab: LabDef, state: RuntimeState, ignore: { part?: string; wireId?: string } = {}) {
-  const used = new Map<string, string>();
-  for (const spec of lab.parts) {
-    const start = state.parts[spec.id];
-    if (!start || spec.id === ignore.part) continue;
-    for (const hole of partLegs(spec.def, start)) {
-      used.set(holeKey(hole), `the ${displayName(lab, spec.id)}`);
-    }
-  }
-  state.wires.forEach((wire) => {
-    if (wire.id === ignore.wireId) return;
-    const name = wire.pin ? `the ${PIN_BY_ID[wire.pin].name} jumper` : 'a jumper';
-    if (wire.hole) used.set(holeKey(wire.hole), name);
-    if (wire.hole2) used.set(holeKey(wire.hole2), name);
-  });
-  return used;
-}
-
-function partDrop(layout: CanvasLayout, lab: LabDef, state: RuntimeState, part: string, center: Point) {
-  const def = defOf(lab, part);
-  const legs = partLegs(specOf(lab, part).def, { row: 0, col: 0 });
-  const spanX = Math.max(...legs.map((l) => l.col)) * HOLE_PITCH;
-  const first = nearestHole(layout, { x: center.x - spanX / 2, y: center.y });
-  if (!first) return null;
-  const holes = partLegs(specOf(lab, part).def, first);
-  // Parts sit in the a–j grid; the power rails take jumpers only.
-  if (holes.some((h) => h.col >= BREADBOARD.cols || h.row < 0 || h.row > 9)) return null;
-  const used = occupancy(lab, state, { part });
-  const blockedBy = holes.map((hole) => used.get(holeKey(hole))).find(Boolean) ?? null;
-  return { left: first, leads: holes, blockedBy, def };
-}
-
-/** Breadboard jumpers take the color of the rail they reach: black for −, red for +, blue otherwise. */
-function breadboardWireColor(a: Hole | null, b: Hole | null): string {
-  const rows = [a?.row, b?.row];
-  if (rows.includes(RAIL_BOTTOM)) return '#2D3436';
-  if (rows.includes(RAIL_TOP)) return '#E74C3C';
-  return LOOSE_WIRE;
-}
-
-/** Where a jumper's unplugged end dangles: just off the end that is plugged in. */
-function loosePoint(layout: CanvasLayout, wire: RuntimeState['wires'][number]): Point {
-  const clamp = (y: number) => Math.max(8, Math.min(layout.height - 8, y));
-  if (wire.hole) {
-    const at = holePoint(layout, wire.hole);
-    return { x: at.x, y: clamp(at.y - 26) };
-  }
-  const pin = PIN_BY_ID[wire.pin!];
-  const at = pinPoint(layout, pin);
-  return { x: at.x, y: clamp(at.y + (pin.header === 'top' ? -28 : 20)) };
-}
 
 export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispatch, onDraggingChange, onInspect }: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -604,316 +500,20 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
         ));
       })}
 
-      {/* Bin category picker, above everything else in the bin corner. */}
       {categories.length > 1 && category ? (
-        <View style={[styles.picker, frame(layout.bin.x + 6, layout.bin.y + 4, 128, 18)]}>
-          {pickerOpen ? (
-            <Pressable
-              accessibilityLabel="Close the category picker"
-              style={{
-                position: 'absolute',
-                left: -(layout.bin.x + 6) * scale,
-                top: -(layout.bin.y + 4) * scale,
-                width: layout.width * scale,
-                height: layout.height * scale,
-              }}
-              onPress={() => setPickerOpen(false)}
-            />
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Parts bin: showing ${category}. Tap to choose another category.`}
-            onPress={() => setPickerOpen((open) => !open)}
-            style={styles.pickerButton}
-          >
-            <Text style={styles.pickerText} numberOfLines={1}>
-              {category} ▾
-            </Text>
-          </Pressable>
-          {pickerOpen ? (
-            <View style={[styles.pickerMenu, layout.id === 'landscape' ? styles.pickerMenuUp : styles.pickerMenuDown]}>
-              {categories.map((c) => (
-                <Pressable
-                  key={c}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Show ${c}`}
-                  onPress={() => {
-                    setCategory(c);
-                    setPickerOpen(false);
-                  }}
-                  style={[styles.pickerItem, c === category && styles.pickerItemActive]}
-                >
-                  <Text style={[styles.pickerItemText, c === category && styles.pickerItemTextActive]}>{c}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-        </View>
+        <BinPicker
+          layout={layout}
+          scale={scale}
+          categories={categories}
+          category={category}
+          onChange={setCategory}
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+        />
       ) : null}
     </View>
   );
 }
-
-/** One placed or binned part, drawn from its definition. */
-function PartView({
-  spec,
-  at,
-  state,
-  glow,
-  level,
-  lifted = false,
-}: {
-  spec: PartSpec;
-  at: Point;
-  state: RuntimeState;
-  glow: LedGlow;
-  level?: number;
-  lifted?: boolean;
-}) {
-  const flipped = state.flipped.includes(spec.id);
-  const burnt = state.burnt.includes(spec.id);
-  const pressed = state.pressed.includes(spec.id);
-  // Behavior-driven visual state for animated parts (servo angle, motor spinning…).
-  const dyn = state.behavior[spec.id];
-  switch (spec.def) {
-    case 'resistor':
-      return <Resistor at={at} lifted={lifted} />;
-    case 'resistor10k':
-      return <Resistor at={at} lifted={lifted} bands={BANDS_10K} />;
-    case 'led':
-      return (
-        <Led
-          at={at}
-          flipped={flipped}
-          glow={lifted ? 'off' : glow}
-          burnt={burnt}
-          lifted={lifted}
-          color={(spec.color as 'red' | 'green' | 'yellow') ?? 'red'}
-          level={lifted ? undefined : level}
-        />
-      );
-    case 'button':
-      return <Pushbutton at={at} pressed={pressed} lifted={lifted} />;
-    case 'pot':
-      return <Pot at={at} value={typeof state.behavior.knob === 'number' ? state.behavior.knob : 0.5} lifted={lifted} />;
-    case 'rgbLed':
-      return <RgbLed at={at} levels={dyn as { r: number; g: number; b: number } | undefined} lifted={lifted} />;
-    case 'ldr':
-      return <Ldr at={at} blocked={dyn === true} lifted={lifted} />;
-    case 'tmp36':
-      return <Tmp36 at={at} lifted={lifted} />;
-    case 'buzzer':
-      return <Buzzer at={at} flipped={flipped} beep={dyn === true} lifted={lifted} />;
-    case 'servo':
-      return <Servo at={at} angle={typeof dyn === 'number' ? dyn : 0} lifted={lifted} />;
-    case 'motor':
-      return <Motor at={at} spinning={typeof dyn === 'number' && dyn > 0} lifted={lifted} />;
-    case 'transistor':
-      return <Transistor at={at} lifted={lifted} />;
-    case 'diode':
-      return <Diode at={at} flipped={flipped} lifted={lifted} />;
-    case 'battery':
-      return <Battery at={at} flipped={flipped} lifted={lifted} />;
-    case 'stepper':
-      return <Stepper at={at} lifted={lifted} />;
-  }
-}
-
-const StaticScene = memo(function StaticScene({
-  layout,
-  slots,
-  binTitle,
-}: {
-  layout: CanvasLayout;
-  slots: { key: string; label: string; labelY: number; at: Point }[];
-  /** Category name for a filtered bin (free play). */
-  binTitle?: string;
-}) {
-  return (
-    <G>
-      <Rect x={0} y={0} width={layout.width} height={layout.height} fill={colors.canvas} />
-      <Rect x={0} y={0} width={layout.width} height={layout.height} fill="url(#mat)" />
-      <PartsBin layout={layout} slots={slots} title={binTitle} />
-      <BinJumpers at={layout.binJumper} />
-      <Breadboard origin={layout.breadboard} />
-      <ArduinoUno origin={layout.board} />
-    </G>
-  );
-});
-
-function BoardLight({ at, color }: { at: Point; color: string }) {
-  return (
-    <G>
-      <Circle cx={at.x} cy={at.y} r={6} fill="url(#smdGlow)" opacity={0.7} />
-      <Rect x={at.x - 3} y={at.y - 1.8} width={6} height={3.6} rx={0.6} fill={color} />
-    </G>
-  );
-}
-
-/** Highlights the strips and holes a dragged item would connect to. */
-function DropPreview({
-  drag,
-  layout,
-  lab,
-  state,
-}: {
-  drag: Drag | null;
-  layout: CanvasLayout;
-  lab: LabDef;
-  state: RuntimeState;
-}) {
-  if (!drag) return null;
-
-  if (drag.kind === 'knob') return null;
-  const pinTarget = drag.kind === 'wirePin' || drag.kind === 'binWire' ? nearestPin(layout, drag.at, 9) : null;
-  if (pinTarget) {
-    const at = pinPoint(layout, pinTarget);
-    return <Circle cx={at.x} cy={at.y} r={5.5} fill="none" stroke={OK} strokeWidth={1.6} />;
-  }
-  // A pin jumper's pin end only goes to a pin; a breadboard jumper's loose end can take a hole.
-  if (drag.kind === 'wirePin' && state.wires.find((w) => w.id === drag.wireId)?.pin) return null;
-
-  let holes: Hole[] = [];
-  let ok = true;
-  if (drag.kind === 'part') {
-    const target = partDrop(layout, lab, state, drag.part, drag.at);
-    if (!target) return null;
-    holes = target.leads;
-    ok = !target.blockedBy;
-  } else {
-    const hole = nearestHole(layout, drag.at);
-    if (!hole) return null;
-    holes = [hole];
-    ok = !occupancy(lab, state, { wireId: 'wireId' in drag ? drag.wireId : undefined }).has(holeKey(hole));
-  }
-
-  const tone = ok ? OK : BAD;
-  return (
-    <G>
-      {holes.map((hole) => {
-        const topOf = holePoint(layout, { row: hole.row < 5 ? 0 : 5, col: hole.col });
-        const at = holePoint(layout, hole);
-        return (
-          <G key={holeKey(hole)}>
-            <Rect
-              x={topOf.x - 4.6 * BB_SCALE}
-              y={topOf.y - 4.6 * BB_SCALE}
-              width={9.2 * BB_SCALE}
-              height={49.2 * BB_SCALE}
-              rx={4.6 * BB_SCALE}
-              fill={tone}
-              fillOpacity={0.16}
-              stroke={tone}
-              strokeOpacity={0.55}
-              strokeWidth={1}
-            />
-            <Circle cx={at.x} cy={at.y} r={3.8 * BB_SCALE} fill="none" stroke={tone} strokeWidth={1.6} />
-          </G>
-        );
-      })}
-    </G>
-  );
-}
-
-/** Floating label that names what the drag will connect. */
-function DragTag({ drag, layout, lab, state }: { drag: Drag | null; layout: CanvasLayout; lab: LabDef; state: RuntimeState }) {
-  if (!drag || drag.kind === 'knob') return null;
-  const above = { x: drag.at.x, y: drag.at.y - (drag.kind === 'part' ? 44 : 18) };
-
-  if (drag.kind === 'part') {
-    const target = partDrop(layout, lab, state, drag.part, drag.at);
-    if (!target)
-      return <Tag at={above} text={insideBreadboard(layout, drag.at) ? 'line up with the holes' : 'back to bin'} tone="#7F8C8D" />;
-    const tone = target.blockedBy ? BAD : OK;
-    const [a, b] = [target.leads[0], target.leads[target.leads.length - 1]];
-    const spec = specOf(lab, drag.part);
-    if (PART_DEFS[spec.def].polarized) {
-      const [anode, cathode] = state.flipped.includes(drag.part) ? [b, a] : [a, b];
-      return <Tag at={above} text={`+ ${holeName(anode)} · − ${holeName(cathode)}`} tone={tone} />;
-    }
-    return <Tag at={above} text={`${holeName(a)} – ${holeName(b)}`} tone={tone} />;
-  }
-
-  if (drag.kind === 'binWire') {
-    const pin = nearestPin(layout, drag.at, 9);
-    const hole = pin ? null : nearestHole(layout, drag.at);
-    const text = pin ? pin.name : hole ? holeName(hole) : 'jumper wire';
-    return <Tag at={above} text={text} tone={pin || hole ? OK : '#7F8C8D'} />;
-  }
-
-  const wire = drag.kind === 'newWire' ? null : state.wires.find((w) => w.id === drag.wireId);
-
-  if (drag.kind === 'wirePin') {
-    const pin = nearestPin(layout, drag.at, 9);
-    if (pin) return <Tag at={above} text={pin.name} tone={OK} />;
-    if (wire?.pin) return <Tag at={above} text="release to remove" tone={BAD} />;
-    const hole = nearestHole(layout, drag.at);
-    return hole ? (
-      <Tag at={above} text={`${wire?.hole ? holeName(wire.hole) : ''} → ${holeName(hole)}`} tone={OK} />
-    ) : (
-      <Tag at={above} text="pick a pin or hole" tone="#7F8C8D" />
-    );
-  }
-
-  if (drag.kind === 'wireHole2') {
-    const hole = nearestHole(layout, drag.at);
-    return hole ? <Tag at={above} text={holeName(hole)} tone={OK} /> : <Tag at={above} text="release to remove" tone={BAD} />;
-  }
-
-  const pinId = drag.kind === 'newWire' ? drag.pin : wire?.pin;
-  if (drag.kind === 'wireHole' && wire && !wire.pin && wire.hole2) {
-    const hole = nearestHole(layout, drag.at);
-    return hole ? <Tag at={above} text={holeName(hole)} tone={OK} /> : <Tag at={above} text="release to remove" tone={BAD} />;
-  }
-  const pinName = pinId ? PIN_BY_ID[pinId].name : '';
-  const hole = nearestHole(layout, drag.at);
-  if (!hole) {
-    if (drag.kind === 'wireHole' && wire?.hole) return <Tag at={above} text="release to remove" tone={BAD} />;
-    return <Tag at={above} text={drag.kind === 'wireHole' ? 'pick a hole' : pinName} tone="#7F8C8D" />;
-  }
-  return <Tag at={above} text={pinName ? `${pinName} → ${holeName(hole)}` : holeName(hole)} tone={OK} />;
-}
-
-// ---- gesture plumbing ----------------------------------------------------------
-
-type DragHandleProps = {
-  label: string;
-  style: ViewStyle;
-  onStart: (local: Point) => void;
-  onMove: (dx: number, dy: number) => void;
-  onEnd: (dx: number, dy: number, cancelled: boolean) => void;
-};
-
-/**
- * Transparent touch target built on the responder system, which behaves the
- * same for mouse and touch on web and for touch on iOS.
- */
-function DragHandle({ label, style, onStart, onMove, onEnd }: DragHandleProps) {
-  const start = useRef({ x: 0, y: 0 });
-  const delta = (event: GestureResponderEvent): [number, number] => [
-    event.nativeEvent.pageX - start.current.x,
-    event.nativeEvent.pageY - start.current.y,
-  ];
-  return (
-    <View
-      accessibilityLabel={label}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderTerminationRequest={() => false}
-      onResponderGrant={(event) => {
-        start.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
-        onStart({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY });
-      }}
-      onResponderMove={(event) => onMove(...delta(event))}
-      onResponderRelease={(event) => onEnd(...delta(event), false)}
-      onResponderTerminate={(event) => onEnd(...delta(event), true)}
-      style={[styles.handle, webGrab, style]}
-    />
-  );
-}
-
-const webGrab = Platform.OS === 'web' ? ({ cursor: 'grab', touchAction: 'none' } as object as ViewStyle) : null;
-const webNoSelect = Platform.OS === 'web' ? ({ userSelect: 'none' } as ViewStyle) : null;
 
 const styles = StyleSheet.create({
   canvas: {
@@ -923,56 +523,5 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: 'absolute',
-  },
-  picker: {
-    position: 'absolute',
-    zIndex: 20,
-  },
-  pickerButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.panel,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.panelBorder,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  pickerText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  pickerMenu: {
-    position: 'absolute',
-    left: 0,
-    backgroundColor: colors.panel,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.panelBorder,
-    minWidth: 128,
-    overflow: 'hidden',
-    zIndex: 21,
-  },
-  // The bin sits at the top of the canvas on phones and at the bottom on wide screens.
-  pickerMenuDown: {
-    top: 26,
-  },
-  pickerMenuUp: {
-    bottom: 26,
-  },
-  pickerItem: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  pickerItemActive: {
-    backgroundColor: colors.teal,
-  },
-  pickerItemText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pickerItemTextActive: {
-    color: '#FFFFFF',
   },
 });

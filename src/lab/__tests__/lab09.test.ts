@@ -1,4 +1,4 @@
-// Lab 09 tests: the transistor-switched motor on its own battery — the pin
+// Lab 09 tests: the transistor-switched motor on its own battery. The pin
 // damage mistake, the backwards diode, the common ground, and the flyback
 // warning for a motor with no diode.
 

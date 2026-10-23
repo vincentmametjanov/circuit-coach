@@ -48,7 +48,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
     facts: [
       'Brown, black, orange = 1, 0, ×1000 = 10 000 Ω (10 kΩ); gold means ±5%.',
       'As a pull-down it connects an input to GND so the pin reads LOW until a button connects it to 5V.',
-      'It passes so little current (0.5 mA at 5 V) that it barely loads the circuit — that is the point.',
+      'It passes so little current (0.5 mA at 5 V) that it barely loads the circuit. That is the point.',
     ],
     howTo: 'Drag it onto the breadboard between the input pin’s column and a GND column.',
   },
@@ -84,7 +84,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
   },
   rgbLed: {
     name: 'RGB LED (common cathode)',
-    summary: 'Three LEDs — red, green, blue — in one dome, sharing one − leg.',
+    summary: 'Three LEDs (red, green, blue) in one dome, sharing one − leg.',
     facts: [
       'The longest leg is the common cathode (−); it goes to GND. The other three legs light red, green and blue.',
       'Each color needs its own resistor and its own PWM (~) pin, and the pin’s level sets that color’s brightness.',
@@ -97,7 +97,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
     summary: 'A resistor whose value changes with light: low resistance when bright, high when dark.',
     facts: [
       'Bright light: about 1 kΩ. In the dark: 100 kΩ or more.',
-      'Paired with a fixed 10 kΩ resistor it makes a voltage divider an analog pin can read — that is a light sensor.',
+      'Paired with a fixed 10 kΩ resistor it makes a voltage divider an analog pin can read. That is a light sensor.',
       'In a factory, a photoelectric sensor uses the same trick to detect a box breaking a beam.',
     ],
     howTo: 'Drag it onto the breadboard like a resistor. While the sketch runs, drag it to change the light.',
@@ -127,18 +127,18 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
     summary: 'A motor that turns to a commanded angle (0–180°) and holds it.',
     facts: [
       'Three connections: brown = GND, red = 5V, orange = signal. The signal pin sends a pulse that sets the angle.',
-      'Power it from 5V, not 3.3V — on 3.3V it jitters and stalls.',
+      'Power it from 5V, not 3.3V. On 3.3V it jitters and stalls.',
       'Factories use position control like this for diverter gates and robot joints.',
     ],
     howTo: 'Drag it onto the breadboard so its three legs sit in three columns: GND, 5V, signal.',
   },
   motor: {
     name: 'DC motor',
-    summary: 'Spins while current flows through it — far more current than a pin can safely supply.',
+    summary: 'Spins while current flows through it, far more current than a pin can safely supply.',
     facts: [
       'A motor can draw 500 mA or more; an Arduino pin is rated for 20 mA. Never wire a motor straight to a pin.',
       'A transistor works as the switch: the pin drives the transistor, the transistor drives the motor.',
-      'When a motor switches off it kicks back a voltage spike — the flyback diode absorbs it.',
+      'When a motor switches off it kicks back a voltage spike. The flyback diode absorbs it.',
     ],
     howTo: 'Drag it onto the breadboard and wire it through the transistor, not to a pin.',
   },
@@ -156,7 +156,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
     name: '1N4007 diode',
     summary: 'A one-way valve for current: it conducts into the banded end’s opposite leg only.',
     facts: [
-      'Current flows from the plain end (anode) toward the banded end (cathode) — never the other way.',
+      'Current flows from the plain end (anode) toward the banded end (cathode), never the other way.',
       'Across a motor it sits “backwards” on purpose (band toward +) so it only conducts when the motor’s spike arrives.',
     ],
     howTo: 'Drag it onto the breadboard. Tap it to flip which end has the band.',
@@ -166,17 +166,17 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
     summary: 'A separate power supply for the motor, so the motor’s current never passes through the Arduino.',
     facts: [
       'The red lead is +, the black lead is −.',
-      'The battery’s − must connect to the Arduino’s GND — without a common ground the transistor never switches.',
+      'The battery’s − must connect to the Arduino’s GND. Without a common ground the transistor never switches.',
       'The Arduino reads and switches, the battery delivers the power: control and power are separate circuits.',
     ],
     howTo: 'Drag it onto the breadboard. Tap it to swap which leg is +.',
   },
   stepper: {
     name: 'Stepper motor + driver',
-    summary: 'A motor that moves in exact steps — one pulse on the step leg moves it one step.',
+    summary: 'A motor that moves in exact steps. One pulse on the step leg moves it one step.',
     facts: [
       'The driver takes a step pin and a direction pin; each pulse on step moves the shaft one step in that direction.',
-      'A stepper has no idea where it is at power-up — that is why machines run a homing routine first.',
+      'A stepper has no idea where it is at power-up. That is why machines run a homing routine first.',
       'CNC mills and pick-and-place machines home every axis this way before they start work.',
     ],
     howTo: 'Drag it onto the breadboard: step, direction and ground legs in three columns.',
@@ -209,7 +209,7 @@ export const COMPONENTS: Record<ComponentId, ComponentInfo> = {
       'Under each numbered column, holes a–e share one metal strip, and f–j share another.',
       'Two legs in the same strip are connected. Legs in different columns are not.',
       'The gap down the middle separates the top and bottom strips.',
-      'The + and − rails along the top and bottom edges each connect end to end. Wire GND to the − rail once and every part can reach ground through a short jumper.',
+      'Each edge has a red (+) rail and a blue (−) rail. Every hole along one rail is connected end to end, but the four rails are separate from each other. Wire GND to a − rail once and every part can reach ground through a short jumper.',
     ],
     howTo: 'Drop parts and jumper ends into its holes. A green highlight shows which strip a leg will join.',
   },

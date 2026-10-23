@@ -18,7 +18,7 @@ const R_BRIGHT = 1_000;
 const R_DARK = 100_000;
 const R_FIXED = 10_000;
 
-const SKETCH = `// part_counter.ino — Lab 06
+const SKETCH = `// part_counter.ino: Lab 06
 // Counts boxes breaking a light beam on A0, like a photoeye on a conveyor.
 
 const int SENSOR_PIN = A0;
@@ -60,7 +60,7 @@ export function sensorDivider(c: Circuit, ldrId = 'ldr', fixedId = 'resistor10k'
 
 /**
  * What A0 reads with `light` from 0 (dark / beam blocked) to 1 (bright).
- * Swapping sensor and fixed resistor flips which way the reading swings —
+ * Swapping sensor and fixed resistor flips which way the reading swings;
  * the light-on / dark-on selector on a real photo sensor. Null when A0 floats.
  */
 export function ldrReading(c: Circuit, light: number, ldrId = 'ldr', fixedId = 'resistor10k', node = 'A0'): number | null {
@@ -111,7 +111,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB06: LabDef = {
   id: 'lab06',
-  title: 'Lab 06 · Part counter',
+  title: 'Lab 06: Part counter',
   sketch: { name: 'part_counter', code: SKETCH, highlightLine: 18 },
   parts: [
     { def: 'ldr', id: 'ldr' },
@@ -150,8 +150,8 @@ export const LAB06: LabDef = {
             title: 'Circuit check passed',
             detail:
               divider.top === 'ldr'
-                ? 'Sensor on the 5V side, 10 kΩ to GND: a box in the beam pulls A0 low, below the 512 threshold. Dark-on — the factory default for counting.'
-                : 'Fixed resistor on the 5V side, sensor to GND: a box pushes A0 high instead — the light-on / dark-on selector on a real photo sensor. The sketch counts it just the same.',
+                ? 'Sensor on the 5V side, 10 kΩ to GND: a box in the beam pulls A0 low, below the 512 threshold. This is dark-on, the factory default for counting.'
+                : 'Fixed resistor on the 5V side, sensor to GND: a box pushes A0 high instead. That is the light-on / dark-on selector on a real photo sensor. The sketch counts it just the same.',
           };
         }
         // The LDR alone from 5V to A0: no divider, so the reading never moves.
@@ -191,7 +191,7 @@ export const LAB06: LabDef = {
           return {
             title: 'The beam sensor isn’t wired to A0 yet',
             detail:
-              'Make a divider: 5V → photoresistor → A0, then A0 → 10 kΩ resistor → GND. (Swapping the two resistive parts works too — it just flips dark-on to light-on.)',
+              'Make a divider: 5V → photoresistor → A0, then A0 → 10 kΩ resistor → GND. (Swapping the two resistive parts works too. It just flips dark-on to light-on.)',
           };
         }
         case 'missingParts': {
@@ -238,7 +238,13 @@ export const LAB06: LabDef = {
     runningNote() {
       return { title: 'The sketch is running, but boxes pass without being counted', detail: '' };
     },
-    success: 'Boxes cross the beam and the counter climbs — one count per box. Lab 06 complete!',
+    success: 'Boxes cross the beam and the counter climbs, one count per box. Lab 06 complete!',
+  },
+
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { ldr: { row: 0, col: 2 }, resistor10k: { row: 2, col: 5 }, led: { row: 2, col: 13 }, resistor: { row: 0, col: 10 } },
+    wires: [['5V', { row: 1, col: 2 }], ['A0', { row: 1, col: 5 }], ['GND_T', { row: 1, col: 8 }], ['D7', { row: 1, col: 10 }], ['GND_P1', { row: 4, col: 14 }]],
   },
 
   steps: [
@@ -276,7 +282,7 @@ export const LAB06: LabDef = {
     explainers: [
       {
         title: 'The sensor is a divider',
-        body: 'The photoresistor is about 1 kΩ in bright light and 100 kΩ in the dark. Against the fixed 10 kΩ, A0 sits near 930 bright and near 93 dark — an easy threshold at 512.',
+        body: 'The photoresistor is about 1 kΩ in bright light and 100 kΩ in the dark. Against the fixed 10 kΩ, A0 sits near 930 bright and near 93 dark, so 512 is an easy threshold.',
       },
       {
         title: 'Light-on vs dark-on',
@@ -284,7 +290,7 @@ export const LAB06: LabDef = {
       },
       {
         title: 'Count once per box',
-        body: 'The loop runs hundreds of times while one box passes. The sketch remembers boxThere and only counts the moment the beam changes — the same edge detection the stack light used for its button.',
+        body: 'The loop runs hundreds of times while one box passes. The sketch remembers boxThere and only counts the moment the beam changes. It is the same edge detection the stack light used for its button.',
       },
       {
         title: 'On the factory floor',
@@ -293,8 +299,8 @@ export const LAB06: LabDef = {
     ],
     proTip: {
       title: 'Pro tip: pick the threshold in the middle',
-      body: 'With bright ≈ 930 and dark ≈ 93, any threshold between them works — 512 sits in the middle, farthest from noise at either end. Real sensors call this the sensitivity adjustment.',
+      body: 'With bright ≈ 930 and dark ≈ 93, any threshold between them works. 512 sits in the middle, farthest from noise at either end. Real sensors call this the sensitivity adjustment.',
     },
   },
-  next: { id: 'lab07', title: 'Lab 07 · Over-temperature alarm' },
+  next: { id: 'lab07', title: 'Lab 07: Over-temperature alarm' },
 };

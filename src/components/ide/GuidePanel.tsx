@@ -1,4 +1,6 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { LabDef } from '../../lab/lab';
 import type { RuntimeStep as LabStep } from '../../lab/runtime';
@@ -11,36 +13,56 @@ export function GuidePanel({
   steps,
   passed,
   scrollable = true,
+  onShowSolution,
 }: {
   lab: LabDef;
   steps: LabStep[];
   passed: boolean;
   scrollable?: boolean;
+  /** Opens the solution popup; absent when the lab has no solution (free play). */
+  onShowSolution?: () => void;
 }) {
   const current = steps.findIndex((step) => !step.done);
+  // Tapping any step shows its instructions again, without changing the bench.
+  const [opened, setOpened] = useState<string | null>(null);
   const content = (
     <View style={styles.content}>
-      <Text style={styles.panelTitle}>LAB GUIDE</Text>
+      <Text style={styles.panelTitle}>Lab guide</Text>
       <Text style={styles.labTitle}>{lab.title}</Text>
       <Text style={styles.body}>{lab.guide.intro}</Text>
 
       <View style={styles.steps}>
-        {steps.map((step, index) => (
-          <View key={step.id} style={[styles.step, index === current && styles.stepCurrent]}>
-            <View style={[styles.stepBadge, step.done && styles.stepBadgeDone]}>
-              {step.done ? (
-                <Icon name="check" size={13} color="#FFFFFF" />
-              ) : (
-                <Text style={styles.stepNumber}>{index + 1}</Text>
-              )}
-            </View>
-            <View style={styles.stepCopy}>
-              <Text style={[styles.stepTitle, step.done && styles.stepTitleDone]}>{step.title}</Text>
-              {index === current ? <Text style={styles.stepDetail}>{step.detail}</Text> : null}
-            </View>
-          </View>
-        ))}
+        {steps.map((step, index) => {
+          const showDetail = index === current || opened === step.id;
+          return (
+            <Pressable
+              key={step.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Step ${index + 1}: ${step.title}`}
+              onPress={() => setOpened((id) => (id === step.id ? null : step.id))}
+              style={[styles.step, index === current && styles.stepCurrent]}
+            >
+              <View style={[styles.stepBadge, step.done && styles.stepBadgeDone]}>
+                {step.done ? (
+                  <Icon name="check" size={13} color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.stepNumber}>{index + 1}</Text>
+                )}
+              </View>
+              <View style={styles.stepCopy}>
+                <Text style={[styles.stepTitle, step.done && styles.stepTitleDone]}>{step.title}</Text>
+                {showDetail ? <Text style={styles.stepDetail}>{step.detail}</Text> : null}
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
+
+      {onShowSolution ? (
+        <Pressable accessibilityRole="button" onPress={onShowSolution} style={styles.solutionLink}>
+          <Text style={styles.solutionLinkText}>Stuck? Show the solution</Text>
+        </Pressable>
+      ) : null}
 
       {passed && lab.guide.proTip ? (
         <View style={styles.proTip}>
@@ -56,10 +78,15 @@ export function GuidePanel({
       ))}
 
       {lab.next ? (
-        <View style={styles.nextCard}>
-          <Text style={styles.nextLabel}>UP NEXT</Text>
-          <Text style={styles.nextTitle}>{lab.next.title}</Text>
-        </View>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${lab.next.title}`}
+          onPress={() => router.navigate(`/labs/${lab.next!.id}`)}
+          style={({ hovered, pressed }) => [styles.nextCard, (hovered || pressed) && styles.nextCardActive]}
+        >
+          <Text style={styles.nextLabel}>Up next</Text>
+          <Text style={styles.nextTitle}>{lab.next.title} →</Text>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -77,13 +104,29 @@ function Explainer({ title, children }: { title: string; children: string }) {
 }
 
 /** One-line version of the current step, shown above the canvas on phones. */
-export function NextStepBanner({ steps, doneText }: { steps: LabStep[]; /** Shown once every step is done. */ doneText: string }) {
+export function NextStepBanner({
+  steps,
+  doneText,
+  onShowSolution,
+}: {
+  steps: LabStep[];
+  /** Shown once every step is done. */
+  doneText: string;
+  onShowSolution?: () => void;
+}) {
   const index = steps.findIndex((step) => !step.done);
   const done = index === -1;
   const step = done ? null : steps[index];
   return (
     <View style={[styles.banner, done && styles.bannerDone]}>
-      <Text style={styles.bannerLabel}>{done ? 'LAB COMPLETE' : `STEP ${index + 1} OF ${steps.length}`}</Text>
+      <View style={styles.bannerRow}>
+        <Text style={styles.bannerLabel}>{done ? 'Lab complete' : `Step ${index + 1} of ${steps.length}`}</Text>
+        {onShowSolution && !done ? (
+          <Pressable accessibilityRole="button" onPress={onShowSolution}>
+            <Text style={styles.bannerLink}>Show solution</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Text style={styles.bannerTitle}>{step ? step.title : doneText}</Text>
       {step ? <Text style={styles.bannerDetail}>{step.detail}</Text> : null}
     </View>
@@ -102,9 +145,8 @@ const styles = StyleSheet.create({
   panelTitle: {
     color: colors.textMuted,
     fontFamily: fonts.ui,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: '600',
   },
   labTitle: {
     color: colors.text,
@@ -200,6 +242,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  solutionLink: {
+    alignSelf: 'flex-start',
+  },
+  solutionLinkText: {
+    color: colors.teal,
+    fontFamily: fonts.ui,
+    fontSize: 13,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  nextCardActive: {
+    backgroundColor: colors.tealPale,
+  },
+  bannerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bannerLink: {
+    color: colors.teal,
+    fontFamily: fonts.ui,
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   nextCard: {
     marginTop: 4,
     padding: 12,
@@ -212,9 +279,8 @@ const styles = StyleSheet.create({
   nextLabel: {
     color: colors.textMuted,
     fontFamily: fonts.ui,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '600',
   },
   nextTitle: {
     color: colors.text,
@@ -238,9 +304,8 @@ const styles = StyleSheet.create({
   bannerLabel: {
     color: colors.tealDark,
     fontFamily: fonts.ui,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '600',
   },
   bannerTitle: {
     color: colors.text,

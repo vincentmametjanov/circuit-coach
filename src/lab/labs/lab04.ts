@@ -11,7 +11,7 @@ import { circuitOf, printSerial } from '../runtime';
 
 const WIPER = { node: 'A0', name: 'A0' };
 
-const SKETCH = `// speed_dial.ino — Lab 04
+const SKETCH = `// speed_dial.ino: Lab 04
 // Reads the speed knob on A0 and prints it, like a conveyor's speed dial.
 
 const int DIAL_PIN = A0;
@@ -68,7 +68,7 @@ export function dividerWired(c: Circuit): boolean {
 
 export const LAB04: LabDef = {
   id: 'lab04',
-  title: 'Lab 04 · Speed dial',
+  title: 'Lab 04: Speed dial',
   sketch: { name: 'speed_dial', code: SKETCH, highlightLine: 10 },
   parts: [{ def: 'pot', id: 'pot', name: '10 kΩ potentiometer' }],
 
@@ -186,6 +186,12 @@ export const LAB04: LabDef = {
     success: 'Turn the knob: the Serial Monitor tracks it from 0 to 1023. Lab 04 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { pot: { row: 0, col: 2 } },
+    wires: [['5V', { row: 1, col: 2 }], ['A0', { row: 1, col: 4 }], ['GND_T', { row: 1, col: 6 }]],
+  },
+
   steps: [
     {
       id: 'pot',
@@ -227,7 +233,7 @@ export const LAB04: LabDef = {
       },
       {
         title: '0–1023 ↔ 0–5 V',
-        body: 'analogRead returns 10 bits: 1024 steps. The sketch converts with volts = reading × (5.0 ÷ 1023). A reading of 512 is 512 × 0.00489 ≈ 2.50 V — the knob halfway round.',
+        body: 'analogRead returns 10 bits: 1024 steps. The sketch converts with volts = reading × (5.0 ÷ 1023). A reading of 512 is 512 × 0.00489 ≈ 2.50 V, the knob halfway round.',
       },
       {
         title: 'On the factory floor',
@@ -236,10 +242,10 @@ export const LAB04: LabDef = {
     ],
     proTip: {
       title: 'Pro tip: the map() function',
-      body: 'map(reading, 0, 1023, 0, 100) turns the dial straight into a percent — how a HMI shows “line speed: 62%”.',
+      body: 'map(reading, 0, 1023, 0, 100) turns the dial straight into a percent. That is how an HMI shows “line speed: 62%”.',
     },
   },
-  next: { id: 'lab05', title: 'Lab 05 · Motor speed (PWM)' },
+  next: { id: 'lab05', title: 'Lab 05: Motor speed (PWM)' },
 };
 
 function knobOf(state: { behavior: Record<string, unknown> }): number {

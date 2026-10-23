@@ -1,6 +1,6 @@
 // Lab 10: Limit switches & debounce. Two buttons stand in for a machine's
 // end-of-travel limit switch and its E-stop: the line (an LED) runs only
-// while the limit is clear and the E-stop is up. Limit presses count cycles —
+// while the limit is clear and the E-stop is up. Limit presses count cycles,
 // and a bouncing contact shows why one press must count exactly once.
 
 import type { Circuit } from '../engine/circuit';
@@ -17,7 +17,7 @@ const ESTOP = { node: 'D3', name: 'pin 3', part: 'estop', pullDowns: ['pullEstop
 /** How often the simulated switch contact bounces on a press. */
 const BOUNCE_CHANCE = 0.35;
 
-const SKETCH = `// limit_switches.ino — Lab 10
+const SKETCH = `// limit_switches.ino: Lab 10
 // The line runs while the limit switch (pin 2) is clear and the E-stop
 // (pin 3) is not pressed. Each limit trip counts one carriage cycle.
 
@@ -39,7 +39,7 @@ void loop() {
   bool stopped = digitalRead(ESTOP_PIN) == HIGH;
   digitalWrite(RUN_PIN, !tripped && !stopped ? HIGH : LOW);
   if (tripped && lastLimit == LOW) {
-    cycles++;                       // one trip, one cycle — if the switch doesn't bounce
+    cycles++;                       // one trip, one cycle (if the switch doesn't bounce)
     Serial.print("Cycle ");
     Serial.println(cycles);
   }
@@ -66,7 +66,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
   };
 
   if (stopped && !wasStopped) {
-    next = appendLog(next, ['error', 'E-STOP pressed — the line stops immediately, mid-cycle.']);
+    next = appendLog(next, ['error', 'E-STOP pressed. The line stops immediately, mid-cycle.']);
   } else if (!stopped && wasStopped) {
     next = appendLog(next, ['info', 'E-stop released. The line runs again.']);
   }
@@ -83,7 +83,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
       next = appendLog(
         { ...next, behavior: { ...next.behavior, cycles } },
         ['warn', `The limit switch bounced: one carriage pass just counted as two (cycles ${cycles - 1} and ${cycles}).`],
-        ['hint', 'Hint: Mechanical contacts chatter for a few milliseconds. The fix is debounce — after the first edge, ignore the input for ~20 ms (see the pro tip).'],
+        ['hint', 'Hint: Mechanical contacts chatter for a few milliseconds. The fix is debounce: after the first edge, ignore the input for about 20 ms (see the pro tip).'],
       );
       return { lab, state: next };
     }
@@ -95,7 +95,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB10: LabDef = {
   id: 'lab10',
-  title: 'Lab 10 · Limit switches & debounce',
+  title: 'Lab 10: Limit switches & debounce',
   sketch: { name: 'limit_switches', code: SKETCH, highlightLine: 21 },
   parts: [
     { def: 'button', id: 'limit', name: 'Limit switch (button)' },
@@ -156,7 +156,7 @@ export const LAB10: LabDef = {
           if (!c.part(input.part) || inputPinState(c, input.node, input.pullDowns) !== 'floating') return null;
           return {
             title: `${input.name} is floating`,
-            detail: `Nothing holds ${input.name} LOW while its switch is up, so the line can stop — or counts can jump — on their own. Add its 10 kΩ pull-down to GND.`,
+            detail: `Nothing holds ${input.name} LOW while its switch is up, so the line can stop, or counts can jump, on their own. Add its 10 kΩ pull-down to GND.`,
           };
         }
         case 'switchOpen': {
@@ -236,11 +236,17 @@ export const LAB10: LabDef = {
     success: 'The line runs until the limit trips or the E-stop drops it. Watch for a bounce in the cycle count. Lab 10 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { limit: { row: 2, col: 2 }, estop: { row: 2, col: 7 }, pullLimit: { row: 5, col: 2 }, pullEstop: { row: 8, col: 4 }, led: { row: 2, col: 14 }, resistor: { row: 0, col: 11 } },
+    wires: [['5V', { row: 0, col: 2 }], ['D2', { row: 9, col: 2 }], ['GND_T', { row: 6, col: 5 }], ['IOREF', { row: 0, col: 7 }], ['D3', { row: 9, col: 7 }], ['GND_P1', { row: 9, col: 4 }], ['D7', { row: 1, col: 11 }], ['GND_P2', { row: 4, col: 15 }]],
+  },
+
   steps: [
     {
       id: 'limit',
       title: 'Wire the limit switch to pin 2',
-      detail: '5V → switch → pin 2, with the 10 kΩ pull-down from pin 2’s column to GND — the Lab 02 circuit.',
+      detail: '5V → switch → pin 2, with the 10 kΩ pull-down from pin 2’s column to GND. This is the Lab 02 circuit.',
       built: (q) => inputOk(q, LIMIT),
     },
     {
@@ -267,11 +273,11 @@ export const LAB10: LabDef = {
 
   guide: {
     intro:
-      'The safety spine of every machine, in miniature: an end-of-travel limit switch and an E-stop, both read as plain digital inputs — and a look at why one press must count exactly once.',
+      'The safety spine of every machine, in miniature: an end-of-travel limit switch and an E-stop, both read as plain digital inputs. Plus a look at why one press must count exactly once.',
     explainers: [
       {
         title: 'Limit switches',
-        body: 'A limit switch trips when a moving part reaches the end of its travel. The controller stops the motor the moment the input changes — before anything crashes. Your run light does exactly that.',
+        body: 'A limit switch trips when a moving part reaches the end of its travel. The controller stops the motor the moment the input changes, before anything crashes. Your run light does exactly that.',
       },
       {
         title: 'E-stop: stop first, ask later',
@@ -279,17 +285,17 @@ export const LAB10: LabDef = {
       },
       {
         title: 'Bounce: why one press counts twice',
-        body: 'Metal contacts don’t close cleanly — they chatter for a few milliseconds, making several LOW→HIGH edges for one press. A counter that trusts every edge double-counts. You’ll see it happen here: some trips count two cycles.',
+        body: 'Metal contacts do not close cleanly. They chatter for a few milliseconds, making several LOW→HIGH edges for one press. A counter that trusts every edge double-counts. You’ll see it happen here: some trips count two cycles.',
       },
       {
         title: 'On the factory floor',
-        body: 'Every axis of every machine has limit switches; every machine has a latching E-stop loop. Controls engineers debounce every input that counts or steps — in code, or with hardware.',
+        body: 'Every axis of every machine has limit switches; every machine has a latching E-stop loop. Controls engineers debounce every input that counts or steps, in code or with hardware.',
       },
     ],
     proTip: {
       title: 'Pro tip: debounce in four lines',
-      body: 'On a LOW→HIGH edge, record millis(); ignore further edges for 20 ms. One press, one count — no matter how the contacts chatter. That’s the whole fix.',
+      body: 'On a LOW→HIGH edge, record millis(); ignore further edges for 20 ms. One press, one count, no matter how the contacts chatter. That is the whole fix.',
     },
   },
-  next: { id: 'lab11', title: 'Lab 11 · Stepper homing' },
+  next: { id: 'lab11', title: 'Lab 11: Stepper homing' },
 };

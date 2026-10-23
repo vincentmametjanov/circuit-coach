@@ -1,10 +1,11 @@
 // Lab 02: Start button. The Lab 01 LED loop stays, and a pushbutton on pin 2
 // with a 10 kΩ pull-down decides whether the LED lights. While the sketch
 // runs, holding the button lights the LED; a floating pin 2 flickers at
-// random — the exact reason real machines never leave an input floating.
+// random. That is the reason real machines never leave an input floating.
 
 import { type Circuit, buildCircuit, pathThrough } from '../engine/circuit';
 import { type LedLoop, findLoop, findShort, ledLoopMessages } from '../engine/ledLoop';
+import { straddlesGap } from '../engine/inputs';
 import { PIN_BY_ID } from '../geometry';
 import type { LabDef } from '../lab';
 import { type LabStore, type RuntimeState, appendLog, circuitOf, nextRandom } from '../runtime';
@@ -12,7 +13,7 @@ import { type LabStore, type RuntimeState, appendLog, circuitOf, nextRandom } fr
 const LOOP: LedLoop = { signal: { node: 'D7', name: 'pin 7' }, led: 'led', resistor: 'resistor' };
 const INPUT: LedLoop['signal'] = { node: 'D2', name: 'pin 2' };
 
-const SKETCH = `// start_button.ino — Lab 02
+const SKETCH = `// start_button.ino: Lab 02
 // Lights the LED on pin 7 while the button on pin 2 is held.
 
 const int LED_PIN = 7;
@@ -97,7 +98,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB02: LabDef = {
   id: 'lab02',
-  title: 'Lab 02 · Start button',
+  title: 'Lab 02: Start button',
   sketch: { name: 'start_button', code: SKETCH, highlightLine: 12 },
   parts: [
     { def: 'resistor', id: 'resistor' },
@@ -128,7 +129,7 @@ export const LAB02: LabDef = {
     check(code, c) {
       const say = ledLoopMessages(LAB02, LOOP);
       switch (code) {
-        // Shorts on the supply rails (not the button — that is buttonShort).
+        // Shorts on the supply rails (not the button; that is buttonShort).
         case 'short': {
           const short = findShort(c);
           if (!short) return null;
@@ -149,7 +150,7 @@ export const LAB02: LabDef = {
             return {
               title: 'Short circuit: the button joins 5V to GND when pressed',
               detail:
-                'The button should sit between 5V and pin 2, with only the 10 kΩ pull-down going to GND. As wired, pressing it connects the supply straight to ground — on a real machine that is how fuses blow.',
+                'The button should sit between 5V and pin 2, with only the 10 kΩ pull-down going to GND. As wired, pressing it connects the supply straight to ground. On a real machine that is how fuses blow.',
             };
           }
           return null;
@@ -173,7 +174,7 @@ export const LAB02: LabDef = {
           };
         }
         // Every LED-loop mistake from Lab 01, in one bucket. Only findings on
-        // the lab's own signals count — a reversed finding from an unrelated
+        // the lab's own signals count. A reversed finding from an unrelated
         // net (say, a button wired to 5V) is not an LED problem.
         case 'ledLoop': {
           const loop = findLoop(c, LOOP);
@@ -217,17 +218,17 @@ export const LAB02: LabDef = {
           return {
             title: 'The button reads “always pressed”',
             detail:
-              'Pin 2 is tied straight to 5V — nothing the button does changes it. Wire 5V to one side of the button and pin 2 to the other side, across the center gap.',
+              'Pin 2 is tied straight to 5V, so nothing the button does changes it. Wire 5V to one side of the button and pin 2 to the other side, across the center gap.',
           };
         }
         // pin 2 is wired but nothing holds it LOW: it floats. Reported once
-        // the button is on the bench — before that, missingParts speaks first.
+        // the button is on the bench. Before that, missingParts speaks first.
         case 'floating': {
           if (!c.part('button') || inputState(c) !== 'floating') return null;
           return {
             title: 'Pin 2 is floating',
             detail:
-              'Nothing holds pin 2 at LOW while the button is up, so it drifts between readings — a real machine can start by itself this way. Add the 10 kΩ pull-down from pin 2’s column to GND.',
+              'Nothing holds pin 2 at LOW while the button is up, so it drifts between readings. A real machine can start by itself this way. Add the 10 kΩ pull-down from pin 2’s column to GND.',
           };
         }
         // The button's far side is jumpered to some other input pin instead of pin 2.
@@ -255,7 +256,7 @@ export const LAB02: LabDef = {
             ? {
                 title: 'That pull-down is a 220 Ω resistor',
                 detail:
-                  'It works — pin 2 still reads LOW — but it draws 23 mA whenever the button is held, against 0.5 mA through the 10 kΩ. Factory panels run for years; use the 10 kΩ.',
+                  'It works, and pin 2 still reads LOW, but it draws 23 mA whenever the button is held, against 0.5 mA through the 10 kΩ. Factory panels run for years; use the 10 kΩ.',
               }
             : null;
         }
@@ -314,11 +315,17 @@ export const LAB02: LabDef = {
     success: 'Hold the button: the LED lights while pin 2 reads HIGH. Lab 02 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { resistor: { row: 0, col: 2 }, led: { row: 2, col: 5 }, button: { row: 2, col: 8 }, resistor10k: { row: 6, col: 11 } },
+    wires: [['D7', { row: 1, col: 2 }], ['GND_T', { row: 1, col: 6 }], ['5V', { row: 0, col: 8 }], ['D2', { row: 9, col: 11 }], ['GND_P1', { row: 9, col: 14 }]],
+  },
+
   steps: [
     {
       id: 'led-loop',
       title: 'Rebuild the Lab 01 LED loop',
-      detail: '220 Ω resistor and LED in series from pin 7 to GND — same circuit as Lab 01.',
+      detail: '220 Ω resistor and LED in series from pin 7 to GND, the same circuit as Lab 01.',
       built: (q) => {
         const loop = findLoop(q, LOOP);
         return loop?.kind === 'ok' && loop.source.node === LOOP.signal.node;
@@ -326,14 +333,15 @@ export const LAB02: LabDef = {
     },
     {
       id: 'button',
-      title: 'Place the button across the gap',
-      detail: 'Its four legs straddle the center gap: two legs in the top half, two in the bottom half of the same two columns.',
-      built: (q) => q.part('button') !== undefined,
+      title: 'Place the button across the center gap',
+      detail:
+        'The gap is the channel that runs across the middle of the breadboard, between rows e and f. Drop the button in the top half so two legs land above the gap (rows a to e) and two land below it (rows f to j), in the same two columns.',
+      built: (q) => straddlesGap(q, 'button'),
     },
     {
       id: 'button-5v',
       title: 'Wire 5V to one side of the button',
-      detail: 'Drag from the 5V pin to a column holding one side of the button.',
+      detail: 'Drag from the 5V pin on the Arduino’s bottom header to a column holding one of the button’s legs.',
       built: (q) => {
         const sides = buttonSides(q);
         return !!sides && q.wired('5V') && (sides.sideA === q.net('5V') || sides.sideB === q.net('5V'));
@@ -342,7 +350,7 @@ export const LAB02: LabDef = {
     {
       id: 'button-pin2',
       title: 'Wire the other side to pin 2',
-      detail: 'Drag from pin 2 to the column on the button’s other side.',
+      detail: 'Drag from pin 2 on the Arduino’s top header to a column holding a leg on the button’s other side (the other pair of legs, across the gap).',
       built: (q) => {
         const sides = buttonSides(q);
         if (!sides || !q.wired('D2')) return false;
@@ -353,7 +361,8 @@ export const LAB02: LabDef = {
     {
       id: 'pulldown',
       title: 'Add the 10 kΩ pull-down to GND',
-      detail: 'From pin 2’s column to a GND pin. This holds the input LOW while the button is up.',
+      detail:
+        'Place the 10 kΩ resistor with one leg in the same column as the pin 2 jumper (the resistor spans 3 columns). Then drag from a GND pin on the Arduino to the resistor’s other column. This holds pin 2 LOW while the button is up.',
       built: (q) => {
         const pull = q.legNets('resistor10k');
         return !!pull && q.wired('D2') && q.wired('GND') && pull.includes(q.net('D2')) && pull.includes(q.net('GND'));
@@ -368,11 +377,11 @@ export const LAB02: LabDef = {
 
   guide: {
     intro:
-      'The LED circuit from Lab 01 stays. Now a button on pin 2 decides when it lights — the same start button every machine has.',
+      'The LED circuit from Lab 01 stays. Now a button on pin 2 decides when it lights, the same start button every machine has.',
     explainers: [
       {
         title: 'Why the pull-down resistor',
-        body: 'An input pin with nothing connected picks up electrical noise and reads HIGH or LOW at random — it “floats”. The 10 kΩ resistor ties pin 2 to GND, so the pin reads LOW until the button connects it to 5V.',
+        body: 'An input pin with nothing connected picks up electrical noise and reads HIGH or LOW at random. It “floats”. The 10 kΩ resistor ties pin 2 to GND, so the pin reads LOW until the button connects it to 5V.',
       },
       {
         title: 'Why 10 kΩ and not 220 Ω',
@@ -384,15 +393,15 @@ export const LAB02: LabDef = {
       },
       {
         title: 'On the factory floor',
-        body: 'Start/stop buttons and limit switches are digital inputs with pull resistors, exactly like this. A floating input on a real machine can start a motor by itself — that is why the resistor is not optional.',
+        body: 'Start/stop buttons and limit switches are digital inputs with pull resistors, exactly like this. A floating input on a real machine can start a motor by itself. That is why the resistor is not optional.',
       },
     ],
     proTip: {
       title: 'Pro tip: INPUT_PULLUP',
-      body: 'The Arduino has pull resistors built in. pinMode(2, INPUT_PULLUP) ties pin 2 to 5V internally, and the button then wires from pin 2 to GND — pressed reads LOW. One less part, same idea, upside down.',
+      body: 'The Arduino has pull resistors built in. pinMode(2, INPUT_PULLUP) ties pin 2 to 5V internally, and the button then wires from pin 2 to GND, so pressed reads LOW. One less part, same idea, upside down.',
     },
   },
-  next: { id: 'lab03', title: 'Lab 03 · Machine stack light' },
+  next: { id: 'lab03', title: 'Lab 03: Machine stack light' },
 };
 
 /** True when a signal-ish pin other than 7 and 2 has a jumper in it. */

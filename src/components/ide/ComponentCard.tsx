@@ -9,7 +9,7 @@ export function ComponentCard({ id, onClose }: { id: ComponentId; onClose: () =>
   return (
     <View style={styles.card} accessibilityRole="summary" accessibilityLabel={`About the ${info.name}`}>
       <View style={styles.header}>
-        <Text style={styles.label}>WHAT IS THIS?</Text>
+        <Text style={styles.label}>What is this?</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close"
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  label: { color: colors.teal, fontFamily: fonts.ui, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  label: { color: colors.teal, fontFamily: fonts.ui, fontSize: 12, fontWeight: '600' },
   close: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   closeHover: { backgroundColor: colors.tealPale },
   closeText: { color: colors.textMuted, fontSize: 20, lineHeight: 22 },

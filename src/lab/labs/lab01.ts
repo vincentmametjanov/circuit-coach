@@ -7,9 +7,9 @@ import type { LabDef } from '../lab';
 
 const LOOP: LedLoop = { signal: { node: 'D7', name: 'pin 7' }, led: 'led', resistor: 'resistor' };
 
-const LED_CURRENT = 'About 14 mA flows — (5 V − 2 V LED drop) ÷ 220 Ω — bright, and safely under the LED’s 20 mA limit.';
+const LED_CURRENT = 'About 14 mA flows: (5 V − 2 V LED drop) ÷ 220 Ω. That is bright and safely under the LED’s 20 mA limit.';
 
-export const SKETCH01 = `// blink_d7.ino — Lab 01
+export const SKETCH01 = `// blink_d7.ino: Lab 01
 // Blinks an LED wired to digital pin 7.
 
 const int LED_PIN = 7;   // must match your jumper wire
@@ -27,7 +27,7 @@ void loop() {
 
 export const LAB01: LabDef = {
   id: 'lab01',
-  title: 'Lab 01 · Blink an LED on pin 7',
+  title: 'Lab 01: Blink an LED on pin 7',
   sketch: { name: 'blink_d7', code: SKETCH01, highlightLine: 4 },
   parts: [
     { def: 'resistor', id: 'resistor' },
@@ -64,7 +64,7 @@ export const LAB01: LabDef = {
             return {
               title: 'Short circuit: pin 7 is wired straight to GND',
               detail:
-                'With nothing in between, pin 7 would dump as much current as it can into ground — enough to damage the pin. Current has to pass through the resistor and LED on its way to GND.',
+                'With nothing in between, pin 7 would dump as much current as it can into ground, enough to damage the pin. Current has to pass through the resistor and LED on its way to GND.',
             };
           }
           if (b.node !== 'GND') {
@@ -205,6 +205,12 @@ export const LAB01: LabDef = {
     success: 'Your LED is blinking on pin 7. Lab 01 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { resistor: { row: 0, col: 2 }, led: { row: 2, col: 5 } },
+    wires: [['D7', { row: 1, col: 2 }], ['GND_T', { row: 1, col: 6 }]],
+  },
+
   steps: [
     {
       id: 'resistor',
@@ -220,14 +226,14 @@ export const LAB01: LabDef = {
     },
     {
       id: 'signal',
-      title: 'Wire pin 7 to the resistor',
-      detail: 'Drag from pin 7 on the top header to the resistor’s other column.',
+      title: 'Wire pin 7 on the Arduino to the resistor',
+      detail: 'Drag from pin 7 on the Arduino’s top header to the resistor’s other column on the breadboard.',
       built: (q) => q.wired('D7') && q.legNets('resistor')!.includes(q.net('D7')) && q.net('D7') !== q.legNets('led')![0],
     },
     {
       id: 'ground',
       title: 'Wire GND to the LED’s − leg',
-      detail: 'Drag from any GND pin to the column holding the LED’s − (short) leg.',
+      detail: 'Drag from any GND pin on the Arduino to the column holding the LED’s − (short) leg.',
       built: (q) => q.part('led') !== undefined && q.wired('GND') && q.legNets('led')![1] === q.net('GND'),
     },
     {
@@ -259,5 +265,5 @@ export const LAB01: LabDef = {
       },
     ],
   },
-  next: { id: 'lab02', title: 'Lab 02 · Start button and pull-down resistors' },
+  next: { id: 'lab02', title: 'Lab 02: Start button and pull-down resistors' },
 };

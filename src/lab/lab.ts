@@ -3,6 +3,7 @@
 // the behavior model that runs while the sketch is "uploaded". The shared
 // runtime in src/lab/runtime.ts drives any lab built to this shape.
 
+import type { Hole } from './geometry';
 import type { LabLog, LabStore } from './runtime';
 import type { Circuit } from './engine/circuit';
 import type { PartSpec } from './parts';
@@ -11,6 +12,17 @@ export type Message = { title: string; detail: string; source?: string };
 
 /** Read-only questions a lab's verdict and step functions can ask. */
 export type CircuitQuery = Circuit;
+
+/** A complete, correct layout for a lab. Holes use the breadboard's row index (0 = a) and column index (0 = 1). */
+export type Solution = {
+  parts: Record<string, Hole>;
+  /** Parts placed with their legs the other way round (an LED's − leg first). */
+  flipped?: string[];
+  /** Jumpers from an Arduino pin to a breadboard hole. */
+  wires: [string, Hole][];
+  /** Jumpers between two breadboard holes. */
+  links?: [Hole, Hole][];
+};
 
 export type VerdictSpec = {
   /** Verdicts that mean "wired wrong" and are flagged the moment they appear. */
@@ -66,7 +78,7 @@ export type Behavior = {
 
 export type LabDef = {
   id: string;
-  /** "Lab 02 · Start button" */
+  /** "Lab 02: Start button" */
   title: string;
   sketch: { name: string; code: string; highlightLine?: number };
   /** The parts bin contents, in display order. */
@@ -78,6 +90,9 @@ export type LabDef = {
    */
   physics?: (lab: LabDef, store: LabStore) => LabLog | null;
   behavior: Behavior;
+  /** One correct build: where every part goes and every jumper runs. */
+  solution?: Solution;
+
   steps: LabStepSpec[];
   guide: { intro: string; explainers: { title: string; body: string }[]; proTip?: { title: string; body: string } };
   /** Shown in the guide panel as the next lab, when there is one. */

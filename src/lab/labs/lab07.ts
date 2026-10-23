@@ -1,6 +1,6 @@
 // Lab 07: Over-temperature alarm. A TMP36 feeds A0 a voltage that means a
 // real temperature (°C = (volts − 0.5) × 100); over the setpoint the buzzer
-// and red light respond, and the alarm only clears 2 °C lower — hysteresis,
+// and red light respond, and the alarm only clears 2 °C lower (hysteresis,
 // so it doesn't chatter at the boundary. This is an oven/motor overheat alarm.
 
 import { type Circuit, pathThrough } from '../engine/circuit';
@@ -18,7 +18,7 @@ const LEG = { vcc: 0, vout: 1, gnd: 2 };
 const SETPOINT = 30;
 const HYSTERESIS = 2;
 
-const SKETCH = `// over_temp_alarm.ino — Lab 07
+const SKETCH = `// over_temp_alarm.ino: Lab 07
 // Reads a TMP36 on A0 in real °C and raises an alarm over the setpoint,
 // clearing it 2 °C lower so it doesn't chatter at the boundary.
 
@@ -98,7 +98,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
     next = { ...next, behavior: { ...next.behavior, alarm: true, buzzer: buzzerWired(c) } };
     return {
       lab,
-      state: appendLog(next, ['warn', `ALARM: ${temp.toFixed(1)} °C is over the ${SETPOINT} °C setpoint — horn on, red light on.`]),
+      state: appendLog(next, ['warn', `ALARM: ${temp.toFixed(1)} °C is over the ${SETPOINT} °C setpoint. Horn on, red light on.`]),
     };
   }
   if (alarm && temp <= SETPOINT - HYSTERESIS) {
@@ -106,7 +106,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
       lab,
       state: appendLog({ ...next, behavior: { ...next.behavior, alarm: false, buzzer: false } }, [
         'info',
-        `Alarm cleared at ${temp.toFixed(1)} °C — it stayed on until ${HYSTERESIS} °C below the setpoint (hysteresis, so it can't chatter).`,
+        `Alarm cleared at ${temp.toFixed(1)} °C. It stayed on until ${HYSTERESIS} °C below the setpoint (hysteresis, so it can't chatter).`,
       ]),
     };
   }
@@ -115,7 +115,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB07: LabDef = {
   id: 'lab07',
-  title: 'Lab 07 · Over-temperature alarm',
+  title: 'Lab 07: Over-temperature alarm',
   sketch: { name: 'over_temp_alarm', code: SKETCH, highlightLine: 20 },
   parts: [
     { def: 'tmp36', id: 'tmp36' },
@@ -159,7 +159,7 @@ export const LAB07: LabDef = {
           return {
             title: 'The TMP36 is in backwards',
             detail:
-              'With +VS on GND and its GND leg on 5V, a real TMP36 gets hot to the touch within a minute. Flat side facing you, the legs are +VS, VOUT, GND — re-place it so +VS reaches 5V.',
+              'With +VS on GND and its GND leg on 5V, a real TMP36 gets hot to the touch within a minute. Flat side facing you, the legs are +VS, VOUT, GND. Place it again so +VS reaches 5V.',
           };
         }
         case 'sensorWiring': {
@@ -266,7 +266,7 @@ export const LAB07: LabDef = {
     if (!tmp36Backwards(circuitOf(lab, state))) return null;
     store.state = { ...state, behavior: { ...state.behavior, tmpWarned: true } };
     return [
-      ['warn', 'The TMP36 is running backwards — on a real board it would be getting hot right now.'],
+      ['warn', 'The TMP36 is running backwards. On a real board it would be getting hot right now.'],
       ['hint', 'Hint: Cut the power (Reset), then re-place the sensor: flat side facing you, +VS left to 5V, GND right.'],
     ];
   },
@@ -287,7 +287,13 @@ export const LAB07: LabDef = {
       if (!tmp36Wired(c)) return { title: 'The sketch is running, but the Serial Monitor shows no temperature', detail: '' };
       return { title: 'The sketch is running, but the alarm can’t sound or light', detail: '' };
     },
-    success: 'Drag the sensor to warm it: past 30 °C the horn and red light trip — and stay on until it cools 2 °C. Lab 07 complete!',
+    success: 'Drag the sensor to warm it: past 30 °C the horn and red light trip, and stay on until it cools 2 °C. Lab 07 complete!',
+  },
+
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { tmp36: { row: 0, col: 2 }, buzzer: { row: 0, col: 8 }, led: { row: 2, col: 15 }, resistor: { row: 0, col: 12 } },
+    wires: [['5V', { row: 1, col: 2 }], ['A0', { row: 1, col: 4 }], ['GND_T', { row: 1, col: 6 }], ['D8', { row: 1, col: 8 }], ['GND_P1', { row: 1, col: 10 }], ['D7', { row: 1, col: 12 }], ['GND_P2', { row: 4, col: 16 }]],
   },
 
   steps: [
@@ -321,7 +327,7 @@ export const LAB07: LabDef = {
     {
       id: 'upload',
       title: 'Upload and heat it up',
-      detail: 'Drag the sensor to raise the temperature past 30 °C. Watch the alarm trip — and notice it doesn’t clear until 28 °C.',
+      detail: 'Drag the sensor to raise the temperature past 30 °C. Watch the alarm trip, and notice it does not clear until 28 °C.',
     },
   ],
 
@@ -331,7 +337,7 @@ export const LAB07: LabDef = {
     explainers: [
       {
         title: 'A sensor that speaks °C',
-        body: 'The TMP36 outputs 10 mV per °C with a 500 mV offset, so °C = (volts − 0.5) × 100. 0.75 V is 25 °C. The sketch converts the analogRead count to volts, then to degrees — real units, not a raw 0–1023.',
+        body: 'The TMP36 outputs 10 mV per °C with a 500 mV offset, so °C = (volts − 0.5) × 100. 0.75 V is 25 °C. The sketch converts the analogRead count to volts, then to degrees. Real units, not a raw 0 to 1023.',
       },
       {
         title: 'Hysteresis: on at 30, off at 28',
@@ -347,5 +353,5 @@ export const LAB07: LabDef = {
       body: 'The offset pushes 0 °C up to 0.5 V so the sensor can read below freezing (down to −40 °C) without needing a negative supply. When you see an offset in a datasheet, it’s usually buying range.',
     },
   },
-  next: { id: 'lab08', title: 'Lab 08 · Sorting gate' },
+  next: { id: 'lab08', title: 'Lab 08: Sorting gate' },
 };

@@ -72,7 +72,7 @@ export function SectionTitle({ eyebrow, title, intro }: { eyebrow?: string; titl
   const { phone } = useScreen();
   return (
     <View style={styles.sectionTitle}>
-      {eyebrow ? <Text style={styles.eyebrow}>{eyebrow.toUpperCase()}</Text> : null}
+      {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
       <Text style={[styles.h2, phone && styles.h2Phone]} accessibilityRole="header">
         {title}
       </Text>
@@ -138,7 +138,7 @@ export const text = StyleSheet.create({
   body: { color: colors.text, fontFamily: fonts.ui, fontSize: 16, lineHeight: 24 },
   small: { color: colors.textMuted, fontFamily: fonts.ui, fontSize: 13, lineHeight: 19 },
   h3: { color: colors.titleBar, fontFamily: fonts.ui, fontSize: 18, lineHeight: 24, fontWeight: '700' },
-  label: { color: colors.teal, fontFamily: fonts.ui, fontSize: 12, fontWeight: '700', letterSpacing: 0.8 },
+  label: { color: colors.teal, fontFamily: fonts.ui, fontSize: 14, fontWeight: '600' },
 });
 
 const styles = StyleSheet.create({
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   band: { backgroundColor: '#FFFFFF' },
   bandTint: { backgroundColor: colors.canvas },
   sectionTitle: { gap: 10, marginBottom: 28, maxWidth: 720 },
-  eyebrow: { color: colors.teal, fontFamily: fonts.ui, fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  eyebrow: { color: colors.teal, fontFamily: fonts.ui, fontSize: 14, fontWeight: '600' },
   h2: { color: colors.titleBar, fontFamily: fonts.ui, fontSize: 30, lineHeight: 38, fontWeight: '700' },
   h2Phone: { fontSize: 24, lineHeight: 31 },
   intro: { color: colors.text, fontFamily: fonts.ui, fontSize: 17, lineHeight: 26 },

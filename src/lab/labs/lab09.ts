@@ -16,7 +16,7 @@ const BUTTON = { node: 'D2', name: 'pin 2', part: 'button', pullDowns: ['resisto
 /** PN2222 legs, flat side facing you: emitter, base, collector. */
 const LEG = { emitter: 0, base: 1, collector: 2 };
 
-const SKETCH = `// conveyor_motor.ino — Lab 09
+const SKETCH = `// conveyor_motor.ino: Lab 09
 // Pin 9 drives a transistor; the transistor switches the motor's own 9 V
 // battery. Hold the start button on pin 2 to run the conveyor.
 
@@ -50,7 +50,7 @@ function motorSides(c: Circuit): { high: string; low: string } | null {
   return null;
 }
 
-/** True when the battery's − leg shares the Arduino's ground — without it the transistor never switches. */
+/** True when the battery's − leg shares the Arduino's ground. Without it the transistor never switches. */
 function commonGround(c: Circuit): boolean {
   const battery = batteryNets(c);
   return !!battery && c.wired('GND') && battery.minus === c.net('GND');
@@ -80,7 +80,7 @@ function diodeBackwards(c: Circuit): boolean {
   return legs[1] === sides.low && legs[0] === sides.high;
 }
 
-/** The motor wired straight onto a digital pin — the pin can't supply it and gets damaged. */
+/** The motor wired straight onto a digital pin. The pin can't supply it and gets damaged. */
 function motorOnPin(c: Circuit): string | null {
   const legs = c.legNets('motor');
   if (!legs) return null;
@@ -115,7 +115,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB09: LabDef = {
   id: 'lab09',
-  title: 'Lab 09 · Conveyor motor',
+  title: 'Lab 09: Conveyor motor',
   sketch: { name: 'conveyor_motor', code: SKETCH, highlightLine: 13 },
   parts: [
     { def: 'motor', id: 'motor' },
@@ -159,13 +159,13 @@ export const LAB09: LabDef = {
           return {
             title: `The motor is wired straight to ${pin}`,
             detail:
-              'A motor draws hundreds of milliamps; a pin is rated for 20 mA and will be damaged trying. The pin drives the transistor’s base — the battery drives the motor.',
+              'A motor draws hundreds of milliamps; a pin is rated for 20 mA and will be damaged trying. The pin drives the transistor’s base. The battery drives the motor.',
           };
         }
         case 'diodeBackwards': {
           if (!diodeBackwards(c)) return null;
           return {
-            title: 'The diode is backwards — it shorts the battery',
+            title: 'The diode is backwards and shorts the battery',
             detail:
               'With the band away from +, the diode conducts from the battery straight through the transistor to GND the moment the motor starts. The band (cathode) points toward battery +. Tap the diode to flip it.',
           };
@@ -177,7 +177,7 @@ export const LAB09: LabDef = {
             title: 'Circuit check passed',
             detail: diodeOk(c)
               ? 'Battery + → motor → collector, emitter → GND, base on pin 9, battery − joined to the Arduino’s GND, and the diode’s band toward +. Hold the button to run the conveyor.'
-              : 'The power path is right and the button works. One thing missing: the flyback diode across the motor — it runs without it, but add the diode (band toward +) before the motor’s switch-off spike wears out the transistor.',
+              : 'The power path is right and the button works. One thing missing: the flyback diode across the motor. It runs without it, but add the diode (band toward +) before the motor’s switch-off spike wears out the transistor.',
           };
         }
         case 'transistorSwapped': {
@@ -188,7 +188,7 @@ export const LAB09: LabDef = {
             return {
               title: 'The transistor’s emitter and collector are swapped',
               detail:
-                'A reversed transistor barely conducts — the motor may crawl or stay dead. Flat side facing you, the legs are E, B, C: emitter to GND, collector up to the motor.',
+                'A reversed transistor barely conducts, so the motor may crawl or stay dead. Flat side facing you, the legs are E, B, C: emitter to GND, collector up to the motor.',
             };
           }
           return null;
@@ -280,7 +280,7 @@ export const LAB09: LabDef = {
   },
 
   physics(lab, store) {
-    // A motor with no flyback diode works — and slowly kills the transistor.
+    // A motor with no flyback diode works, and slowly kills the transistor.
     const { state } = store;
     if (!state.running || state.behavior.diodeWarned === true) return null;
     const c = circuitOf(lab, state);
@@ -300,6 +300,14 @@ export const LAB09: LabDef = {
       return { title: 'The sketch is running, but the motor doesn’t turn when you hold the button', detail: '' };
     },
     success: 'Hold the button: the conveyor motor runs on the battery’s power, switched by the pin. Lab 09 complete!',
+  },
+
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { motor: { row: 2, col: 8 }, transistor: { row: 0, col: 2 }, diode: { row: 1, col: 8 }, battery: { row: 0, col: 8 }, button: { row: 2, col: 13 }, resistor10k: { row: 8, col: 10 } },
+    flipped: ['diode'],
+    wires: [['D9', { row: 1, col: 4 }], ['GND_P1', { row: 1, col: 2 }], ['5V', { row: 0, col: 13 }], ['D2', { row: 9, col: 13 }], ['GND_P2', { row: 1, col: 12 }], ['GND_T', { row: 9, col: 10 }]],
+    links: [[{ row: 4, col: 6 }, { row: 0, col: 11 }]],
   },
 
   steps: [
@@ -343,13 +351,13 @@ export const LAB09: LabDef = {
     {
       id: 'upload',
       title: 'Upload and hold the button',
-      detail: 'The motor runs while you hold it — the pin switches, the battery powers.',
+      detail: 'The motor runs while you hold it. The pin switches, the battery powers.',
     },
   ],
 
   guide: {
     intro:
-      'A motor control cabinet, in miniature: a tiny signal from the controller switches a separate, bigger power circuit. The Arduino never powers the motor — it commands it.',
+      'A motor control cabinet, in miniature: a tiny signal from the controller switches a separate, bigger power circuit. The Arduino never powers the motor. It commands it.',
     explainers: [
       {
         title: 'Why not just use a pin?',
@@ -357,11 +365,11 @@ export const LAB09: LabDef = {
       },
       {
         title: 'The flyback diode',
-        body: 'A spinning motor stores energy in its coils. The instant the switch opens, that energy appears as a voltage spike pointed at the transistor. The diode — backwards across the motor in normal operation — gives the spike a safe loop. Band toward +.',
+        body: 'A spinning motor stores energy in its coils. The instant the switch opens, that energy appears as a voltage spike pointed at the transistor. The diode, which is backwards across the motor in normal operation, gives the spike a safe loop. Band toward +.',
       },
       {
         title: 'Common ground',
-        body: 'Two circuits share this bench: control (pin 9, button) and power (battery, motor). The transistor’s base current flows from the Arduino and returns through ground — so the battery’s − must join the Arduino’s GND. Every real drive cabinet does the same.',
+        body: 'Two circuits share this bench: control (pin 9, button) and power (battery, motor). The transistor’s base current flows from the Arduino and returns through ground, so the battery’s − must join the Arduino’s GND. Every real drive cabinet does the same.',
       },
       {
         title: 'On the factory floor',
@@ -370,8 +378,8 @@ export const LAB09: LabDef = {
     ],
     proTip: {
       title: 'Pro tip: MOSFETs',
-      body: 'Bigger motors use a MOSFET instead of a bipolar transistor: the gate needs almost no current at all, and it wastes less power as heat. Same circuit shape — pin drives the gate, supply drives the load.',
+      body: 'Bigger motors use a MOSFET instead of a bipolar transistor: the gate needs almost no current at all, and it wastes less power as heat. Same circuit shape: the pin drives the gate, the supply drives the load.',
     },
   },
-  next: { id: 'lab10', title: 'Lab 10 · Limit switches & debounce' },
+  next: { id: 'lab10', title: 'Lab 10: Limit switches & debounce' },
 };

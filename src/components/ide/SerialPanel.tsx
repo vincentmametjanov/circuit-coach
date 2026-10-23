@@ -12,7 +12,7 @@ export function SerialPanel({ lines, height }: { lines: string[]; height: number
   return (
     <View style={[styles.panel, { height }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Serial Monitor · 9600 baud</Text>
+        <Text style={styles.title}>Serial Monitor at 9600 baud</Text>
       </View>
       <ScrollView ref={scroll} style={styles.body} contentContainerStyle={styles.bodyContent}>
         {lines.length === 0 ? (

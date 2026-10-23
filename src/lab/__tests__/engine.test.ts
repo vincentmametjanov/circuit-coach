@@ -42,14 +42,23 @@ describe('buildCircuit', () => {
 
   it('joins every hole of a power rail into one net', () => {
     const c = buildCircuit(board([], [['GND_T', { row: 10, col: 0 }]]));
-    expect(c.net('rail:bottom')).toBe(c.net('GND'));
+    expect(c.net('rail:bottom:−')).toBe(c.net('GND'));
+  });
+
+  it('keeps the four rails separate until a jumper joins them', () => {
+    const b = board([], [['GND_T', { row: 10, col: 0 }]]);
+    b.links = [[{ row: 10, col: 3 }, { row: -2, col: 3 }]];
+    const c = buildCircuit(b);
+    expect(c.net('rail:top:−')).toBe(c.net('GND'));
+    expect(c.net('rail:top:+')).not.toBe(c.net('GND'));
+    expect(c.net('rail:bottom:+')).not.toBe(c.net('GND'));
   });
 
   it('connects two holes joined by a breadboard jumper', () => {
     const b = board([resistor(3, 6)]);
     b.links = [[hole(6, 1), { row: 10, col: 12 }]];
     const c = buildCircuit(b);
-    expect(c.legNet('resistor', 1)).toBe(c.net('rail:bottom'));
+    expect(c.legNet('resistor', 1)).toBe(c.net('rail:bottom:−'));
   });
 
   it('swaps the + leg of a flipped LED', () => {

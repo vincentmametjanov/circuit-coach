@@ -14,7 +14,7 @@ const SIGNAL = { node: 'D9', name: 'pin ~9' };
 /** Servo legs, in plug order: GND (brown), 5V (red), signal (orange). */
 const LEG = { gnd: 0, vcc: 1, sig: 2 };
 
-const SKETCH = `// sorting_gate.ino — Lab 08
+const SKETCH = `// sorting_gate.ino: Lab 08
 // The knob on A0 sets the gate's angle: 0–1023 mapped to 0–180°.
 
 const int DIAL_PIN = A0;
@@ -29,7 +29,7 @@ void setup() {
 void loop() {
   int reading = analogRead(DIAL_PIN);
   angle = map(reading, 0, 1023, 0, 180);   // 0–1023 in, 0–180° out
-  // servo.write(angle); — the driver pulses pin 9 to hold that angle
+  // servo.write(angle);  the driver pulses pin 9 to hold that angle
   delay(15);
 }`;
 
@@ -72,7 +72,7 @@ export function gateAngle(c: Circuit, knob: number): number | null {
 
 export const LAB08: LabDef = {
   id: 'lab08',
-  title: 'Lab 08 · Sorting gate',
+  title: 'Lab 08: Sorting gate',
   sketch: { name: 'sorting_gate', code: SKETCH, highlightLine: 13 },
   parts: [
     { def: 'pot', id: 'pot', name: '10 kΩ potentiometer' },
@@ -96,7 +96,7 @@ export const LAB08: LabDef = {
           if (servoStatus(c) !== 'ok' || !dividerWired(c)) return null;
           return {
             title: 'Circuit check passed',
-            detail: 'Servo: brown leg to GND, red to 5V, orange (signal) to pin ~9 — and the dial divides 0–5 V into A0. Turn the knob to swing the gate.',
+            detail: 'Servo: brown leg to GND, red to 5V, orange (signal) to pin ~9, and the dial divides 0 to 5 V into A0. Turn the knob to swing the gate.',
           };
         }
         case 'swapped': {
@@ -104,7 +104,7 @@ export const LAB08: LabDef = {
           return {
             title: 'The servo’s power and signal are swapped',
             detail:
-              'The orange signal leg is sitting on 5V and the red power leg on a pin. The servo reads pulses on its signal leg — fed a steady 5V it just sits at one end. Brown → GND, red → 5V, orange → pin ~9.',
+              'The orange signal leg is sitting on 5V and the red power leg on a pin. The servo reads pulses on its signal leg. Fed a steady 5V it just sits at one end. Brown → GND, red → 5V, orange → pin ~9.',
           };
         }
         case 'on33': {
@@ -112,7 +112,7 @@ export const LAB08: LabDef = {
           return {
             title: 'The servo is powered from 3.3V',
             detail:
-              'A servo’s motor wants 5 V. On 3.3V it jitters and stalls under load — the classic “servo twitches but won’t move” problem. Move the red leg’s jumper from 3.3V to 5V.',
+              'A servo’s motor wants 5 V. On 3.3V it jitters and stalls under load, the classic “servo twitches but won’t move” problem. Move the red leg’s jumper from 3.3V to 5V.',
           };
         }
         case 'sigWrongPin': {
@@ -133,7 +133,7 @@ export const LAB08: LabDef = {
           return {
             title: 'The servo’s ground isn’t connected',
             detail:
-              'Signal and power are wired, but the brown leg doesn’t reach GND. The signal’s pulses are measured against ground — with no shared ground they mean nothing. Wire the brown leg’s column to GND.',
+              'Signal and power are wired, but the brown leg doesn’t reach GND. The signal’s pulses are measured against ground. With no shared ground they mean nothing. Wire the brown leg’s column to GND.',
           };
         }
         case 'servoOpen': {
@@ -189,6 +189,12 @@ export const LAB08: LabDef = {
     success: 'Turn the knob: the gate swings through its 0–180° throw. Lab 08 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { pot: { row: 0, col: 2 }, servo: { row: 0, col: 8 } },
+    wires: [['5V', { row: 1, col: 2 }], ['A0', { row: 1, col: 4 }], ['GND_T', { row: 1, col: 6 }], ['GND_P1', { row: 1, col: 8 }], ['IOREF', { row: 1, col: 10 }], ['D9', { row: 1, col: 12 }]],
+  },
+
   steps: [
     {
       id: 'dial',
@@ -210,11 +216,11 @@ export const LAB08: LabDef = {
   ],
 
   guide: {
-    intro: 'A diverter gate, in miniature: instead of a conveyor knob setting speed, here it sets a position — the servo turns to the angle you ask for and holds it.',
+    intro: 'A diverter gate, in miniature: instead of a conveyor knob setting speed, here it sets a position. The servo turns to the angle you ask for and holds it.',
     explainers: [
       {
         title: 'Position, not speed',
-        body: 'A servo listens for a pulse every 20 ms; the pulse’s width (about 1–2 ms) says which angle to hold. Inside, a small motor and a sensor close the loop — it fights to stay at the commanded position.',
+        body: 'A servo listens for a pulse every 20 ms; the pulse’s width (about 1–2 ms) says which angle to hold. Inside, a small motor and a sensor close the loop, so it fights to stay at the commanded position.',
       },
       {
         title: 'map() rescales a range',
@@ -222,15 +228,15 @@ export const LAB08: LabDef = {
       },
       {
         title: 'On the factory floor',
-        body: 'Sorting lines use position-controlled gates to divert boxes; robot arms are stacks of position-controlled joints. The control idea — command a position, let the drive close the loop — is the same from a $3 servo to a factory axis.',
+        body: 'Sorting lines use position-controlled gates to divert boxes; robot arms are stacks of position-controlled joints. The control idea (command a position, let the drive close the loop) is the same from a $3 servo to a factory axis.',
       },
     ],
     proTip: {
       title: 'Pro tip: the Servo library',
-      body: 'Real sketches don’t pulse the pin by hand: Servo.attach(9) takes over the timer and servo.write(angle) holds the angle — the commented lines in this sketch are what production code does.',
+      body: 'Real sketches don’t pulse the pin by hand: Servo.attach(9) takes over the timer and servo.write(angle) holds the angle. The commented lines in this sketch are what production code does.',
     },
   },
-  next: { id: 'lab09', title: 'Lab 09 · Conveyor motor' },
+  next: { id: 'lab09', title: 'Lab 09: Conveyor motor' },
 };
 
 function knobOf(state: { behavior: Record<string, unknown> }): number {

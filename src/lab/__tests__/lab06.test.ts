@@ -39,10 +39,10 @@ describe('Lab 06 verdicts', () => {
   it('passes the textbook divider, dark-on', () => {
     const v = verdict(GOOD);
     expect(v.code).toBe('pass');
-    expect(v.detail).toContain('Dark-on');
+    expect(v.detail).toContain('dark-on');
   });
 
-  it('passes with sensor and fixed resistor swapped — the light-on selector', () => {
+  it('passes with sensor and fixed resistor swapped: the light-on selector', () => {
     const v = verdict(
       bench({ ldr: at(3, 0), resistor10k: at(6, 2), resistor: at(11, 0), led: at(14, 2) }, [
         ['GND_T', at(3, 1)],
@@ -104,7 +104,7 @@ describe('Lab 06 while running', () => {
     for (let i = 0; i < 4; i += 1) state = run(state, { type: 'tick' });
     expect(state.serial.at(-1)).toBe('Part 1 counted (1 part this run)');
     expect(LAB06.behavior.ledLevels!(LAB06, { lab: LAB06, state }).led).toBe(1);
-    // Ticks 5–8: the box is still (or no longer) there — no second count.
+    // Ticks 5–8: the box is still (or no longer) there, so no second count.
     for (let i = 0; i < 4; i += 1) state = run(state, { type: 'tick' });
     expect(state.serial.filter((line) => line.startsWith('Part'))).toHaveLength(1);
   });

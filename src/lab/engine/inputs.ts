@@ -32,3 +32,10 @@ export function withPressed(c: Circuit, part: string): Circuit {
 export function pressReaches(c: Circuit, part: string, node: string, pullDowns: string[]): boolean {
   return inputPinState(withPressed(c, part), node, pullDowns) === 'high';
 }
+
+/** True when a four-leg button has two legs above the center gap and two below it. */
+export function straddlesGap(c: Circuit, part: string): boolean {
+  const placed = c.part(part);
+  if (!placed) return false;
+  return placed.legs.some((leg) => leg.row < 5) && placed.legs.some((leg) => leg.row >= 5);
+}

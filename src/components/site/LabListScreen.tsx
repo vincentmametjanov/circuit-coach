@@ -1,15 +1,28 @@
 // Every lab in the course, grouped by phase. Ready labs open; the rest show
 // what they will teach and where that circuit is used in industry.
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { LABS, PHASES, type LabSummary } from '../../lab/catalog';
+import { loadProgress, type Progress } from '../../lab/progress';
 import { colors, fonts } from '../../theme';
 import { Band, Button, Card, Grid, SectionTitle, SitePage, text, useScreen } from './ui';
 
 export function LabListScreen() {
   const { columns } = useScreen();
+  // Which labs are completed on this device; reloaded each time the page is shown.
+  const [progress, setProgress] = useState<Progress>({});
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      loadProgress().then((all) => alive && setProgress(all));
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
   return (
     <SitePage>
       <Band>
@@ -18,16 +31,13 @@ export function LabListScreen() {
           title="Twelve labs, one skill at a time"
           intro="Work through them in order: each lab reuses what the one before taught."
         />
-        <View style={styles.freePlay}>
-          <Button label="Open the bench — free play with every part" onPress={() => router.navigate('/play')} kind="secondary" />
-        </View>
         <View style={styles.phases}>
           {PHASES.map((phase, index) => (
             <View key={phase} style={styles.phase}>
               <Text style={styles.phaseTitle} accessibilityRole="header">{`${index + 1}. ${phase}`}</Text>
               <Grid columns={columns}>
                 {LABS.filter((lab) => lab.phase === phase).map((lab) => (
-                  <LabCard key={lab.id} lab={lab} />
+                  <LabCard key={lab.id} lab={lab} completed={!!progress[lab.id]?.completed} />
                 ))}
               </Grid>
             </View>
@@ -38,12 +48,12 @@ export function LabListScreen() {
   );
 }
 
-function LabCard({ lab }: { lab: LabSummary }) {
+function LabCard({ lab, completed }: { lab: LabSummary; completed: boolean }) {
   return (
     <Card style={[styles.card, !lab.ready && styles.cardLater]}>
       <View style={styles.cardTop}>
         <Text style={styles.number}>{lab.number}</Text>
-        {lab.ready ? null : <Text style={styles.soon}>Coming soon</Text>}
+        {completed ? <Text style={styles.done}>Completed ✓</Text> : lab.ready ? null : <Text style={styles.soon}>Coming soon</Text>}
       </View>
       <Text style={text.h3}>{lab.title}</Text>
       <Text style={text.body}>{lab.concept}</Text>
@@ -59,7 +69,7 @@ function LabCard({ lab }: { lab: LabSummary }) {
       </View>
       {lab.ready ? (
         <View style={styles.action}>
-          <Button label={`Start Lab ${lab.number}`} onPress={() => router.navigate(`/labs/${lab.id}`)} small />
+          <Button label={completed ? `Open Lab ${lab.number} again` : `Start Lab ${lab.number}`} onPress={() => router.navigate(`/labs/${lab.id}`)} small />
         </View>
       ) : null}
     </Card>
@@ -69,12 +79,17 @@ function LabCard({ lab }: { lab: LabSummary }) {
 const styles = StyleSheet.create({
   phases: { gap: 40 },
   phase: { gap: 16 },
-  freePlay: { marginTop: -24, alignItems: 'flex-start' },
   phaseTitle: { color: colors.titleBar, fontFamily: fonts.ui, fontSize: 20, fontWeight: '700' },
   card: { gap: 8 },
   cardLater: { backgroundColor: colors.panel },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   number: { color: colors.teal, fontFamily: fonts.mono, fontSize: 22, fontWeight: '700' },
+  done: {
+    color: colors.success,
+    fontFamily: fonts.ui,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   soon: {
     color: colors.textMuted,
     fontFamily: fonts.ui,

@@ -93,7 +93,7 @@ export function ledLoopMessages(lab: LabDef, loop: LedLoop) {
   return {
     wrongSource: (source: Source): Message => ({
       title: `The LED runs from ${source.name}, not ${loop.signal.name}`,
-      detail: `It glows, but it’s stuck on — the sketch only switches ${loop.signal.name}. Move that jumper from ${source.name} to ${loop.signal.name}.`,
+      detail: `It glows, but it is stuck on. The sketch only switches ${loop.signal.name}. Move that jumper from ${source.name} to ${loop.signal.name}.`,
     }),
     noLimiter: (source: Source): Message => ({
       title: 'No resistor in the loop',

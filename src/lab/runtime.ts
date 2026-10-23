@@ -4,7 +4,7 @@
 // shared reducer directly for every lab.
 
 import { type Circuit, type CircuitBoard, type PlacedPart, type WireEnd, buildCircuit, pathThrough } from './engine/circuit';
-import type { LabDef, Message, StepQuery, VerdictSpec } from './lab';
+import type { LabDef, Message, Solution, StepQuery, VerdictSpec } from './lab';
 import { type Hole, PIN_BY_ID, holeName } from './geometry';
 import { PART_DEFS, partLegs } from './parts';
 
@@ -72,7 +72,11 @@ export type RuntimeAction =
   | { type: 'uploadStart' }
   | { type: 'uploadDone' }
   | { type: 'tick' }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  /** Puts a complete layout (the lab's solution) on the bench, replacing what is there. */
+  | { type: 'loadSolution'; solution: Solution }
+  /** Puts back the bench saved on this device from an earlier visit. */
+  | { type: 'restoreBench'; bench: Pick<BenchState, 'parts' | 'flipped' | 'wires'> };
 
 const MAX_LOG_LINES = 150;
 // Pressing a button is using the circuit, not building it, so it never flags a wiring mistake.
@@ -247,7 +251,7 @@ export function partName(lab: LabDef, id: string): string {
   return spec?.name ?? (spec ? PART_DEFS[spec.def].name : id);
 }
 
-function describePlacement(lab: LabDef, bench: BenchState, part: string, start: Hole): string {
+export function describePlacement(lab: LabDef, bench: BenchState, part: string, start: Hole): string {
   const spec = lab.parts.find((p) => p.id === part)!;
   const def = PART_DEFS[spec.def];
   const holes = partLegs(spec.def, start);
@@ -258,13 +262,16 @@ function describePlacement(lab: LabDef, bench: BenchState, part: string, start: 
     return `Placed the ${partName(lab, part)}: + leg in ${holeName(plus)}, − leg in ${holeName(minus)}.`;
   }
   if (def.pattern.kind === 'across') {
-    return `Placed the ${partName(lab, part)} across the gap: legs in ${holes.map(holeName).join(', ')}.`;
+    const straddles = holes.some((h) => h.row < 5) && holes.some((h) => h.row >= 5);
+    return straddles
+      ? `Placed the ${partName(lab, part)} across the center gap: legs in ${holes.map(holeName).join(', ')}.`
+      : `Placed the ${partName(lab, part)} flat along one row: legs in ${holes.map(holeName).join(', ')}. All four legs share one strip, so it does not straddle the gap.`;
   }
   if (holes.length > 2) return `Placed the ${partName(lab, part)}: legs in ${holes.map(holeName).join(', ')}.`;
   return `Placed the ${partName(lab, part)} in ${holeName(holes[0])} and ${holeName(holes[1])}.`;
 }
 
-function describeWire(wire: BenchWire): string {
+export function describeWire(wire: BenchWire): string {
   if (!wire.pin && wire.hole && wire.hole2) return `Connected ${holeName(wire.hole)} to ${holeName(wire.hole2)} with a jumper.`;
   const pin = wire.pin ? PIN_BY_ID[wire.pin].name : 'a loose end';
   if (wire.pin && wire.hole) return `Connected ${pin} to ${holeName(wire.hole)} with a jumper.`;
@@ -307,7 +314,7 @@ export function runtimeReducer(lab: LabDef, state: RuntimeState, action: Runtime
   }
   if (!BUILD_ACTIONS.includes(action.type)) return next;
 
-  // Flag a wiring mistake the moment it appears, once — unless physics (a
+  // Flag a wiring mistake the moment it appears, once, unless physics (a
   // burn-out) already reported the same action's consequence.
   const after = judge(lab, next);
   const burntChanged = next.burnt.length !== state.burnt.length;
@@ -427,5 +434,27 @@ function update(lab: LabDef, state: RuntimeState, action: RuntimeAction): Runtim
       const fresh = createLabStore(lab).state;
       return appendLog({ ...fresh, nextId: state.nextId }, ['muted', 'Lab reset. Everything is back in the parts bin.']);
     }
+    case 'restoreBench': {
+      const { parts, flipped, wires } = action.bench;
+      // Only parts this lab still has, so an old save can't break a lab whose parts changed.
+      const known = Object.fromEntries(Object.entries(parts).filter(([id]) => id in state.parts));
+      const next = { ...state, parts: { ...state.parts, ...known }, flipped: flipped.filter((id) => id in state.parts), wires, burnt: [], pressed: [] };
+      const ids = wires.map((w) => Number(w.id.replace(/\D/g, '')) || 0);
+      return appendLog({ ...next, nextId: Math.max(state.nextId, ...ids) + 1 }, ['muted', 'Your bench from last time is back.']);
+    }
+    case 'loadSolution': {
+      const fresh = createLabStore(lab).state;
+      const built = benchFromSolution(fresh, action.solution);
+      return appendLog({ ...built, nextId: state.nextId }, ['info', 'Loaded the solution onto the bench. Press Upload to run it.']);
+    }
   }
+}
+
+/** A bench state with the solution's parts and jumpers in place. */
+export function benchFromSolution(base: RuntimeState, solution: Solution): RuntimeState {
+  const wires: BenchWire[] = [
+    ...solution.wires.map(([pin, hole], i) => ({ id: `s${i}`, pin, hole })),
+    ...(solution.links ?? []).map(([hole, hole2], i) => ({ id: `sl${i}`, pin: null, hole, hole2 })),
+  ];
+  return { ...base, parts: { ...base.parts, ...solution.parts }, flipped: solution.flipped ?? [], burnt: [], pressed: [], wires };
 }

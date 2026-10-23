@@ -27,7 +27,7 @@ export function CodeView({ sketch }: { sketch: { name: string; code: string; hig
   return (
     <View style={styles.editor}>
       <View style={styles.readOnly}>
-        <Text style={styles.readOnlyText}>Read-only — this is the program the Upload button sends to the board.</Text>
+        <Text style={styles.readOnlyText}>Read-only. This is the program the Upload button sends to the board.</Text>
       </View>
       <ScrollView horizontal contentContainerStyle={styles.scrollContent}>
         <View style={styles.lines}>

@@ -1,5 +1,5 @@
 // Lab 11: Stepper homing. A stepper moves in exact steps and has no idea
-// where it is at power-up — so every CNC and pick-and-place machine runs the
+// where it is at power-up, so every CNC and pick-and-place machine runs the
 // same homing routine: step toward the limit switch until it trips, back off,
 // call that position zero. Here you are the limit switch.
 
@@ -22,7 +22,7 @@ const START_POS = 120;
 const STEPS_PER_TICK = 15;
 const OVERTRAVEL = -45;
 
-const SKETCH = `// stepper_homing.ino — Lab 11
+const SKETCH = `// stepper_homing.ino: Lab 11
 // Homes the axis: step toward the limit switch until it trips,
 // back off a few steps, and call that position zero.
 
@@ -94,7 +94,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
       lab,
       state: appendLog({ ...next, behavior: { ...next.behavior, failed: true } }, [
         'error',
-        'Homing failed: the axis ran past where the switch should be. On a real machine this is a crash — the carriage hits the end stop.',
+        'Homing failed: the axis ran past where the switch should be. On a real machine this is a crash: the carriage hits the end stop.',
       ]),
     };
   }
@@ -103,7 +103,7 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
 
 export const LAB11: LabDef = {
   id: 'lab11',
-  title: 'Lab 11 · Stepper homing',
+  title: 'Lab 11: Stepper homing',
   sketch: { name: 'stepper_homing', code: SKETCH, highlightLine: 16 },
   parts: [
     { def: 'stepper', id: 'stepper' },
@@ -128,7 +128,7 @@ export const LAB11: LabDef = {
           if (!signalsOk(c) || !driverGrounded(c) || !limitOk(c)) return null;
           return {
             title: 'Circuit check passed',
-            detail: 'Step on pin ~3, direction on pin 4, driver grounded — and the limit switch reads LOW at rest on pin 2. Upload, then press the switch when the axis should trip it.',
+            detail: 'Step on pin ~3, direction on pin 4, driver grounded, and the limit switch reads LOW at rest on pin 2. Upload, then press the switch when the axis should trip it.',
           };
         }
         case 'stepDirSwapped': {
@@ -174,7 +174,7 @@ export const LAB11: LabDef = {
           if (!c.part(LIMIT.part) || inputPinState(c, LIMIT.node, LIMIT.pullDowns) !== 'floating') return null;
           return {
             title: 'Pin 2 is floating',
-            detail: 'The homing loop reads the limit switch constantly — a floating input can “trip” on its own. Add the 10 kΩ pull-down to GND.',
+            detail: 'The homing loop reads the limit switch constantly, and a floating input can “trip” on its own. Add the 10 kΩ pull-down to GND.',
           };
         }
         case 'alwaysPressed': {
@@ -239,13 +239,13 @@ export const LAB11: LabDef = {
       const { state } = store;
       if (part !== LIMIT.part || !pressed || state.behavior.homed === true || state.behavior.failed === true) return store;
       // The switch trips: back off, then call it zero.
-      let next = printSerial(state, 'Limit switch tripped — backing off 10 steps.');
+      let next = printSerial(state, 'Limit switch tripped. Backing off 10 steps.');
       next = printSerial(next, 'Home found. pos = 0');
       return {
         lab,
         state: appendLog({ ...next, behavior: { ...next.behavior, homed: true, pos: 0 } }, [
           'success',
-          'Homed. Every move from here counts from a known zero — that’s the whole point of the routine.',
+          'Homed. Every move from here counts from a known zero. That is the whole point of the routine.',
         ]),
       };
     },
@@ -253,7 +253,13 @@ export const LAB11: LabDef = {
       if (store.state.behavior.homed === true) return null;
       return { title: 'The sketch is running, but homing never finishes', detail: '' };
     },
-    success: 'The axis steps toward the switch. Press the limit switch when it should trip — that’s homing. Lab 11 complete!',
+    success: 'The axis steps toward the switch. Press the limit switch when it should trip. That is homing. Lab 11 complete!',
+  },
+
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { stepper: { row: 0, col: 2 }, limit: { row: 2, col: 10 }, resistor10k: { row: 8, col: 7 } },
+    wires: [['D3', { row: 1, col: 2 }], ['D4', { row: 1, col: 4 }], ['GND_T', { row: 1, col: 6 }], ['5V', { row: 0, col: 10 }], ['D2', { row: 9, col: 10 }], ['GND_P1', { row: 9, col: 7 }]],
   },
 
   steps: [
@@ -278,7 +284,7 @@ export const LAB11: LabDef = {
     {
       id: 'upload',
       title: 'Upload and home the axis',
-      detail: 'The axis steps toward the switch on its own. Press the limit switch to trip it — home is where it stops.',
+      detail: 'The axis steps toward the switch on its own. Press the limit switch to trip it. Home is where it stops.',
     },
   ],
 
@@ -288,7 +294,7 @@ export const LAB11: LabDef = {
     explainers: [
       {
         title: 'Step and direction',
-        body: 'The driver takes two signals: a level on direction says which way, and each pulse on step moves the shaft one exact step — 1.8° on a common motor. No feedback, just counting.',
+        body: 'The driver takes two signals: a level on direction says which way, and each pulse on step moves the shaft one exact step, 1.8° on a common motor. No feedback, just counting.',
       },
       {
         title: 'Why machines home',
@@ -304,5 +310,5 @@ export const LAB11: LabDef = {
       body: 'Real homing trips the switch fast, then backs off and re-approaches slowly for an accurate zero. The fast pass finds the neighborhood; the slow pass finds the edge.',
     },
   },
-  next: { id: 'lab12', title: 'Lab 12 · Mini sorting line' },
+  next: { id: 'lab12', title: 'Lab 12: Mini sorting line' },
 };

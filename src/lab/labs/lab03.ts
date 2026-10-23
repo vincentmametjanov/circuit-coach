@@ -20,7 +20,7 @@ const CHANNELS: Channel[] = [
 
 const loopOf = (ch: Channel): LedLoop => ({ signal: ch.signal, led: ch.led, resistor: ch.resistor });
 
-const SKETCH = `// stack_light.ino — Lab 03
+const SKETCH = `// stack_light.ino: Lab 03
 // An andon stack light: green = running, yellow = attention, red = stopped.
 // The button on pin 2 steps RUN → WARN → STOP → RUN.
 
@@ -61,7 +61,7 @@ function sharedResistor(c: Circuit): Channel[] | null {
 
 export const LAB03: LabDef = {
   id: 'lab03',
-  title: 'Lab 03 · Machine stack light',
+  title: 'Lab 03: Machine stack light',
   sketch: { name: 'stack_light', code: SKETCH, highlightLine: 16 },
   parts: [
     { def: 'led', id: 'ledGreen', name: 'Green LED', color: 'green' },
@@ -116,7 +116,7 @@ export const LAB03: LabDef = {
           if (!loopsOk || sharedResistor(c) || inputState(c) !== 'low' || !buttonWorks(c)) return null;
           return {
             title: 'Circuit check passed',
-            detail: 'Three loops — pin 5 → green, pin 6 → yellow, pin 7 → red — each with its own 220 Ω resistor, and the button reads LOW at rest.',
+            detail: 'Three loops (pin 5 → green, pin 6 → yellow, pin 7 → red), each with its own 220 Ω resistor, and the button reads LOW at rest.',
           };
         }
         case 'sharedResistor': {
@@ -124,7 +124,7 @@ export const LAB03: LabDef = {
           if (!shared) return null;
           return {
             title: 'One resistor is shared by more than one LED',
-            detail: `It works, but the brightness changes depending on how many lamps are on — a stack light must read the same at a glance. Give each LED its own 220 Ω resistor.`,
+            detail: `It works, but the brightness changes depending on how many lamps are on. A stack light must read the same at a glance. Give each LED its own 220 Ω resistor.`,
           };
         }
         case 'ledLoops': {
@@ -136,7 +136,7 @@ export const LAB03: LabDef = {
               return {
                 title: `The ${ch.color} LED is on ${found.source.name}`,
                 detail: other
-                  ? `The sketch lights ${ch.color} for ${ch.state} on ${ch.signal.name} — right now ${found.source.name} drives it, so ${ch.state} would light the wrong color. Move the signal jumper.`
+                  ? `The sketch lights ${ch.color} for ${ch.state} on ${ch.signal.name}. Right now ${found.source.name} drives it, so ${ch.state} would light the wrong color. Move the signal jumper.`
                   : `It glows, but ${found.source.name} never switches from the sketch. The ${ch.color} LED belongs on ${ch.signal.name}.`,
               };
             }
@@ -149,7 +149,7 @@ export const LAB03: LabDef = {
             if (found.kind === 'noResistor') {
               return {
                 title: `No resistor in the ${ch.color} LED’s loop`,
-                detail: `${found.source.name} connects straight to the LED. Nothing limits the current — put a 220 Ω resistor in series with it.`,
+                detail: `${found.source.name} connects straight to the LED. Nothing limits the current. Put a 220 Ω resistor in series with it.`,
               };
             }
             if (found.kind === 'reversed' && found.source.node === ch.signal.node) {
@@ -262,11 +262,18 @@ export const LAB03: LabDef = {
     success: 'The stack light steps RUN → WARN → STOP with each press. Lab 03 complete!',
   },
 
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { resistorG: { row: 0, col: 0 }, ledGreen: { row: 2, col: 3 }, resistorY: { row: 0, col: 5 }, ledYellow: { row: 2, col: 8 }, resistorR: { row: 5, col: 0 }, ledRed: { row: 7, col: 3 }, button: { row: 2, col: 11 }, resistor10k: { row: 8, col: 8 } },
+    wires: [['D5', { row: 1, col: 0 }], ['D6', { row: 1, col: 5 }], ['D7', { row: 6, col: 0 }], ['GND_T', { row: 10, col: 16 }], ['5V', { row: 0, col: 11 }], ['D2', { row: 9, col: 11 }]],
+    links: [[{ row: 4, col: 4 }, { row: 10, col: 4 }], [{ row: 4, col: 9 }, { row: 10, col: 9 }], [{ row: 9, col: 4 }, { row: 10, col: 5 }], [{ row: 9, col: 8 }, { row: 10, col: 8 }]],
+  },
+
   steps: [
     {
       id: 'green',
       title: 'Build the green loop on pin 5',
-      detail: 'A 220 Ω resistor and the green LED in series from pin 5 to GND — exactly like Lab 01.',
+      detail: 'A 220 Ω resistor and the green LED in series from pin 5 to GND, exactly like Lab 01.',
       built: (q) => {
         const found = findLoop(q, loopOf(CHANNELS[0]));
         return found?.kind === 'ok' && found.source.node === 'D5';
@@ -309,27 +316,27 @@ export const LAB03: LabDef = {
     explainers: [
       {
         title: 'One resistor per LED',
-        body: 'Sharing one resistor between LEDs makes the brightness change depending on how many are lit — the current splits differently. A status light must read the same at a glance, so each lamp gets its own resistor.',
+        body: 'Sharing one resistor between LEDs makes the brightness change depending on how many are lit, because the current splits differently. A status light must read the same at a glance, so each lamp gets its own resistor.',
       },
       {
         title: 'Counting presses, not loops',
-        body: 'The loop() runs thousands of times per second. The sketch remembers the last reading and only counts when it changes from LOW to HIGH — an edge. Otherwise one press would advance the state a hundred times.',
+        body: 'The loop() runs thousands of times per second. The sketch remembers the last reading and only counts when it changes from LOW to HIGH. That change is called an edge. Otherwise one press would advance the state a hundred times.',
       },
       {
         title: 'The power rails',
-        body: 'The red (+) and blue (−) strips along the breadboard edges are each connected end to end. Wire GND to the − rail once, then run a short jumper from each LED’s − column to the rail. Real control panels use the same idea: one common ground bus.',
+        body: 'The red (+) and blue (−) rails along both breadboard edges are each connected end to end (but not to each other). Wire GND to a − rail once, then run a short jumper from each LED’s − column to the rail. Real control panels use the same idea: one common ground bus.',
       },
       {
         title: 'On the factory floor',
-        body: 'An andon stack light shows a whole line’s status from across the shop floor. Operators and supervisors read it without walking over — green run, yellow attention, red stopped.',
+        body: 'An andon stack light shows a whole line’s status from across the shop floor. Operators and supervisors read it without walking over: green means running, yellow needs attention, red is stopped.',
       },
     ],
     proTip: {
       title: 'Pro tip: real stack lights',
-      body: 'Industrial stack lights run on 24 V and the lamp modules have the resistor built in — you wire 24 V and a switched output, exactly like your pin 5 loop but bigger.',
+      body: 'Industrial stack lights run on 24 V and the lamp modules have the resistor built in. You wire 24 V and a switched output, exactly like your pin 5 loop but bigger.',
     },
   },
-  next: { id: 'lab04', title: 'Lab 04 · Speed dial' },
+  next: { id: 'lab04', title: 'Lab 04: Speed dial' },
 };
 
 const stageOf = (state: RuntimeState) => (typeof state.behavior.stage === 'number' ? state.behavior.stage : 0);

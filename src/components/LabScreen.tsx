@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ComponentId } from '../lab/components';
 import { binRowsForCount, fitCanvas } from '../lab/geometry';
 import type { LabDef } from '../lab/lab';
+import { loadProgress, saveLab } from '../lab/progress';
 import { binGroups, binRowsFor, type PartSpec } from '../lab/parts';
 import {
   type RuntimeAction,
@@ -24,6 +25,7 @@ import { ComponentCard } from './ide/ComponentCard';
 import { GuidePanel, NextStepBanner } from './ide/GuidePanel';
 import { OutputPanel } from './ide/OutputPanel';
 import { SerialPanel } from './ide/SerialPanel';
+import { SolutionView } from './ide/SolutionView';
 import { Workbench } from './workbench/Workbench';
 
 type TabId = 'bench' | 'code' | 'guide' | 'serial';
@@ -60,6 +62,7 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
   const [dragging, setDragging] = useState(false);
   const [area, setArea] = useState<{ width: number; height: number } | null>(null);
   const [inspected, setInspected] = useState<ComponentId | null>(null);
+  const [solutionOpen, setSolutionOpen] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Free play has nothing to upload: power the bench as soon as it opens.
@@ -70,6 +73,35 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
   const verdict = useMemo(() => judge(lab, state), [lab, state]);
   const steps = runtimeSteps(lab, state, state.running);
   const stepsDone = steps.filter((step) => step.done).length;
+
+  // Progress lives on this device: the bench comes back as it was left, and a
+  // finished lab stays marked as completed.
+  const [restored, setRestored] = useState(false);
+  const completedBefore = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    loadProgress().then((all) => {
+      if (!alive) return;
+      const saved = all[lab.id];
+      if (saved) {
+        completedBefore.current = saved.completed;
+        const hasSomething = Object.values(saved.parts).some(Boolean) || saved.wires.length > 0;
+        if (hasSomething) dispatch({ type: 'restoreBench', bench: saved });
+      }
+      setRestored(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [lab.id]);
+  const completed = steps.length > 0 && stepsDone === steps.length;
+  const { parts, flipped, wires } = state;
+  useEffect(() => {
+    if (!restored) return;
+    if (completed) completedBefore.current = true;
+    const timer = setTimeout(() => saveLab(lab.id, { parts, flipped, wires, completed: completedBefore.current, updatedAt: Date.now() }), 400);
+    return () => clearTimeout(timer);
+  }, [restored, completed, lab.id, parts, flipped, wires]);
 
   // The behavior model's clock, while the sketch runs.
   const tickMs = lab.behavior.tickMs;
@@ -123,8 +155,8 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
         : state.running
           ? `Running ${sketch}`
           : 'No sketch uploaded';
-  const statusLeft = `${lab.title.split('·')[0].trim()} · ${stepsDone}/${steps.length} steps`;
-  const statusRight = `${status}   ·   Arduino Uno on sim-usb0`;
+  const statusLeft = `${lab.title.split(':')[0]}, ${stepsDone}/${steps.length} steps`;
+  const statusRight = `${status}   |   Arduino Uno on sim-usb0`;
 
   const toolbar = (
     <Toolbar
@@ -134,7 +166,9 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
       onVerify={verify}
       onUpload={upload}
       onReset={reset}
-      onHome={() => router.navigate('/labs')}
+      onHome={() => router.navigate('/')}
+      onLabs={() => router.navigate('/labs')}
+      onBench={lab.id === 'play' ? undefined : () => router.navigate('/play')}
     />
   );
 
@@ -143,6 +177,20 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
   const GUIDE_TAB = { id: 'guide', label: 'Guide' };
   const SERIAL_TAB = { id: 'serial', label: 'Serial' };
   const hasSerial = !!lab.behavior.analogReads || state.serial.length > 0;
+
+  const showSolution = lab.solution ? () => setSolutionOpen(true) : undefined;
+  const solutionPopup =
+    solutionOpen && lab.solution ? (
+      <SolutionView
+        lab={lab}
+        onClose={() => setSolutionOpen(false)}
+        onLoad={() => {
+          timers.current.splice(0).forEach(clearTimeout);
+          dispatch({ type: 'loadSolution', solution: lab.solution! });
+          setSolutionOpen(false);
+        }}
+      />
+    ) : null;
 
   const renderBench = (width: number, height: number | null) => {
     const { layout, scale } = fitCanvas(width, height, binRowsForLab(lab));
@@ -175,9 +223,9 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
         <View style={styles.body}>
           <ActivityBar
             items={[
-              { id: 'guide', icon: 'guide', label: 'Toggle lab guide' },
+              { id: 'guide', icon: 'guide', label: 'Lab guide' },
               { id: 'bench', icon: 'board', label: 'Breadboard' },
-              { id: 'code', icon: 'file', label: 'Sketch' },
+              { id: 'code', icon: 'file', label: 'Program (sketch)' },
             ]}
             active={[guideOpen ? 'guide' : '', mainTab]}
             onSelect={selectActivity}
@@ -189,7 +237,7 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
                   <ComponentCard id={inspected} onClose={() => setInspected(null)} />
                 </View>
               ) : null}
-              {guideOpen ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} /> : null}
+              {guideOpen ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} onShowSolution={showSolution} /> : null}
             </View>
           ) : null}
           <View style={styles.main}>
@@ -211,6 +259,7 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
           </View>
         </View>
         <StatusBar left={statusLeft} right={statusRight} />
+        {solutionPopup}
       </SafeAreaView>
     );
   }
@@ -227,7 +276,7 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
       <ScrollView style={styles.narrowScroll} scrollEnabled={!dragging} contentContainerStyle={styles.narrowContent}>
         {tab === 'bench' ? (
           <View style={styles.narrowBench}>
-            <NextStepBanner steps={steps} doneText={lab.behavior.success ?? 'Every step is done.'} />
+            <NextStepBanner steps={steps} doneText={lab.behavior.success ?? 'Every step is done.'} onShowSolution={showSolution} />
             {inspected ? <ComponentCard id={inspected} onClose={() => setInspected(null)} /> : null}
             <View onLayout={(event) => setArea(event.nativeEvent.layout)}>
               {area ? renderBench(area.width, null) : null}
@@ -240,10 +289,11 @@ export function LabScreen({ lab, autoRun = false }: { lab: LabDef; /** Free play
           </View>
         ) : null}
         {tab === 'serial' ? <SerialPanel lines={state.serial} height={320} /> : null}
-        {tab === 'guide' ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} scrollable={false} /> : null}
+        {tab === 'guide' ? <GuidePanel lab={lab} steps={steps} passed={verdict.code === 'pass'} scrollable={false} onShowSolution={showSolution} /> : null}
         <OutputPanel lines={state.log} height={220} onClear={() => dispatch({ type: 'clearLog' })} />
       </ScrollView>
       <StatusBar left={statusLeft} right={status} />
+      {solutionPopup}
     </SafeAreaView>
   );
 }

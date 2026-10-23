@@ -27,7 +27,7 @@ const IN_BEAM = [5, 6];
 const DECIDE_AT = 6;
 const DARK_CHANCE = 0.4;
 
-const SKETCH = `// mini_sorting_line.ino — Lab 12 (capstone)
+const SKETCH = `// mini_sorting_line.ino: Lab 12 (capstone)
 // Sense → decide → actuate → indicate: the loop a PLC runs.
 // Dark boxes break the beam hard; the gate diverts them.
 
@@ -108,14 +108,14 @@ function runLoop(lab: LabDef, store: LabStore): LabStore {
     const passed = (typeof state.behavior.passed === 'number' ? state.behavior.passed : 0) + (boxDark ? 0 : 1);
     const total = sorted + passed;
     next = { ...next, behavior: { ...next.behavior, sorted, passed } };
-    next = printSerial(next, `Box ${total}: ${boxDark ? 'dark — gate opens' : 'light — passes'}  (sorted ${sorted} dark, ${passed} light)`);
+    next = printSerial(next, `Box ${total}: ${boxDark ? 'dark, gate opens' : 'light, passes'}  (sorted ${sorted} dark, ${passed} light)`);
   }
   return { lab, state: next };
 }
 
 export const LAB12: LabDef = {
   id: 'lab12',
-  title: 'Lab 12 · Mini sorting line',
+  title: 'Lab 12: Mini sorting line',
   sketch: { name: 'mini_sorting_line', code: SKETCH, highlightLine: 27 },
   parts: [
     { def: 'ldr', id: 'ldr' },
@@ -170,7 +170,7 @@ export const LAB12: LabDef = {
               return {
                 title: `The ${ch.color} LED is on ${found.source.name}`,
                 detail: other
-                  ? `The sketch lights ${ch.color} for “${ch.meaning}” on ${ch.loop.signal.name} — right now ${found.source.name} drives it. Move the signal jumper.`
+                  ? `The sketch lights ${ch.color} for “${ch.meaning}” on ${ch.loop.signal.name}. Right now ${found.source.name} drives it. Move the signal jumper.`
                   : `It glows, but ${found.source.name} never switches from the sketch. The ${ch.color} lamp belongs on ${ch.loop.signal.name}.`,
               };
             }
@@ -188,7 +188,7 @@ export const LAB12: LabDef = {
               return {
                 title: `The ${ch.color} LED is on ${found.pinName}`,
                 detail: other
-                  ? `The sketch lights ${ch.color} for “${ch.meaning}” on ${ch.loop.signal.name}, but ${other.loop.signal.name} drives it — so “${other.meaning}” would light the ${ch.color} lamp. Move its signal jumper to ${ch.loop.signal.name}.`
+                  ? `The sketch lights ${ch.color} for “${ch.meaning}” on ${ch.loop.signal.name}, but ${other.loop.signal.name} drives it, so “${other.meaning}” would light the ${ch.color} lamp. Move its signal jumper to ${ch.loop.signal.name}.`
                   : `The sketch drives ${ch.loop.signal.name} for “${ch.meaning}”, so ${found.pinName} never lights it. Move that jumper to ${ch.loop.signal.name}.`,
               };
             }
@@ -208,7 +208,7 @@ export const LAB12: LabDef = {
             status === 'swapped'
               ? 'Power and signal are crossed: brown → GND, red → 5V, orange → pin ~9.'
               : status === 'on33'
-                ? 'The gate servo is on 3.3V — it will jitter and stall. Move the red leg’s jumper to 5V.'
+                ? 'The gate servo is on 3.3V, so it will jitter and stall. Move the red leg’s jumper to 5V.'
                 : status === 'gndMissing'
                   ? 'The servo’s brown leg doesn’t reach GND; the signal pulses have no reference.'
                   : 'Three jumpers: brown leg to GND, red leg to 5V, orange (signal) leg to pin ~9.';
@@ -294,7 +294,14 @@ export const LAB12: LabDef = {
       if (servoStatus(c, SERVO.part, SERVO.node) !== 'ok') return { title: 'The line is running, but the gate never moves', detail: '' };
       return { title: 'The line is running, but the stack light doesn’t show its status', detail: '' };
     },
-    success: 'Boxes pass, dark ones divert, the stack light tells the story. That’s a work cell. Lab 12 complete — course complete!',
+    success: 'Boxes pass, dark ones divert, the stack light tells the story. That is a work cell. Lab 12 complete, and the course is complete!',
+  },
+
+  // One correct build, shown by "Show solution" in the lab guide.
+  solution: {
+    parts: { ldr: { row: 0, col: 0 }, pullSensor: { row: 2, col: 3 }, servo: { row: 0, col: 8 }, ledGreen: { row: 7, col: 3 }, resistorG: { row: 5, col: 0 }, ledYellow: { row: 7, col: 9 }, resistorY: { row: 5, col: 6 }, ledRed: { row: 7, col: 14 }, resistorR: { row: 5, col: 11 }, button: { row: 2, col: 13 }, pullButton: { row: 8, col: 13 } },
+    wires: [['5V', { row: -1, col: 0 }], ['IOREF', { row: 1, col: 10 }], ['D5', { row: 6, col: 0 }], ['D6', { row: 6, col: 6 }], ['D7', { row: 6, col: 11 }], ['D9', { row: 1, col: 12 }], ['A0', { row: 1, col: 3 }], ['D2', { row: 9, col: 13 }], ['GND_T', { row: 10, col: 16 }]],
+    links: [[{ row: -1, col: 2 }, { row: 1, col: 0 }], [{ row: -1, col: 8 }, { row: 1, col: 13 }], [{ row: 1, col: 8 }, { row: 10, col: 8 }], [{ row: 1, col: 6 }, { row: 10, col: 6 }], [{ row: 5, col: 16 }, { row: 10, col: 12 }], [{ row: 9, col: 4 }, { row: 10, col: 4 }], [{ row: 9, col: 10 }, { row: 10, col: 10 }], [{ row: 9, col: 15 }, { row: 10, col: 15 }]],
   },
 
   steps: [
@@ -313,7 +320,7 @@ export const LAB12: LabDef = {
     {
       id: 'stack',
       title: 'Build the stack light on pins 5/6/7 (Lab 03)',
-      detail: 'Green, yellow, red — each LED with its own 220 Ω resistor to GND.',
+      detail: 'Green, yellow, red: each LED with its own 220 Ω resistor to GND.',
       built: (q) => loopsOk(q),
     },
     {
@@ -331,7 +338,7 @@ export const LAB12: LabDef = {
 
   guide: {
     intro:
-      'The capstone: a whole automated work cell on one breadboard. Nothing here is new — that’s the point. Sense, decide, actuate, indicate, all running the same loop a PLC runs.',
+      'The capstone: a whole automated work cell on one breadboard. Nothing here is new. That is the point. Sense, decide, actuate, indicate, all running the same loop a PLC runs.',
     explainers: [
       {
         title: 'Sense → decide → actuate → indicate',
@@ -339,16 +346,16 @@ export const LAB12: LabDef = {
       },
       {
         title: 'What a PLC is',
-        body: 'A programmable logic controller is an industrial computer that runs exactly this loop, thousands of times a second, reading factory inputs and driving outputs. It’s rugged, certified, and programmed in ladder logic — but the decisions are the ones you just wrote.',
+        body: 'A programmable logic controller is an industrial computer that runs exactly this loop, thousands of times a second, reading factory inputs and driving outputs. It’s rugged, certified, and programmed in ladder logic, but the decisions are the ones you just wrote.',
       },
       {
         title: 'The same logic as a ladder diagram',
-        body: 'Drawn as a ladder: the pause contact and the beam contact feed the gate coil, with the lamps in parallel rungs. Contacts are inputs, coils are outputs — if you can read this sketch, you can read a ladder rung.',
+        body: 'Drawn as a ladder: the pause contact and the beam contact feed the gate coil, with the lamps in parallel rungs. Contacts are inputs, coils are outputs. If you can read this sketch, you can read a ladder rung.',
       },
     ],
     proTip: {
       title: 'Where next',
-      body: 'Tune THRESHOLD and the gate timing, and try to raise your sorting score. Then look up “ladder diagram” and redraw this line as rungs — you already know what every symbol does.',
+      body: 'Tune THRESHOLD and the gate timing, and try to raise your sorting score. Then look up “ladder diagram” and redraw this line as rungs. You already know what every symbol does.',
     },
   },
 };

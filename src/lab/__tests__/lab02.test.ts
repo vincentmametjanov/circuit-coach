@@ -110,7 +110,7 @@ describe('Lab 02 verdicts', () => {
 
   it('spots a button wired to 5V and pin 2 on the same side (always pressed)', () => {
     // The button straddles the gap correctly, but both jumpers land on its top
-    // side — the internal link ties pin 2 to 5V whatever the button does.
+    // side: the internal link ties pin 2 to 5V whatever the button does.
     const v = verdict({
       resistor: 3,
       led: 6,

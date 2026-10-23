@@ -65,17 +65,17 @@ export function Pushbutton({ at, pressed = false, lifted = false }: { at: Point;
   return (
     <G transform={`translate(${at.x} ${at.y}) scale(${BB_SCALE})`}>
       {lifted ? <Ellipse cx={1} cy={10} rx={16} ry={3} fill="#000" opacity={0.15} /> : null}
-      {/* Four legs into the holes. */}
-      {[-11, 11].map((dx) =>
-        [-16, 16].map((dy) => (
-          <Line key={`${dx}:${dy}`} x1={dx} y1={dy * 0.55} x2={dx} y2={dy} stroke={LEAD} strokeWidth={1.3} strokeLinecap="round" />
+      {/* Four legs into the holes: columns 3 apart (±15) and rows c and h (±30), so the body bridges the center gap. */}
+      {[-15, 15].map((dx) =>
+        [-30, 30].map((dy) => (
+          <Line key={`${dx}:${dy}`} x1={dx} y1={dy * 0.5} x2={dx} y2={dy} stroke={LEAD} strokeWidth={1.3} strokeLinecap="round" />
         )),
       )}
-      <Rect x={-13} y={-11} width={26} height={22} rx={2.4} fill="#2D3436" stroke="#1B1F20" strokeWidth={0.8} />
-      <Rect x={-11} y={-9} width={22} height={4} rx={2} fill="#3F4A4E" />
-      <Circle cx={0} cy={0} r={6.6} fill={pressed ? '#5A4416' : '#B8860B'} stroke="#8A6508" strokeWidth={0.8} />
-      <Circle cx={0} cy={pressed ? 0.8 : 0} r={4.6} fill={pressed ? '#8A6508' : '#E5A812'} />
-      {pressed ? <Circle cx={0} cy={0.8} r={4.6} fill="#000" opacity={0.18} /> : null}
+      <Rect x={-17} y={-16} width={34} height={32} rx={3} fill="#2D3436" stroke="#1B1F20" strokeWidth={0.8} />
+      <Rect x={-15} y={-14} width={30} height={5} rx={2.5} fill="#3F4A4E" />
+      <Circle cx={0} cy={0} r={8.4} fill={pressed ? '#5A4416' : '#B8860B'} stroke="#8A6508" strokeWidth={0.8} />
+      <Circle cx={0} cy={pressed ? 0.8 : 0} r={6} fill={pressed ? '#8A6508' : '#E5A812'} />
+      {pressed ? <Circle cx={0} cy={0.8} r={6} fill="#000" opacity={0.18} /> : null}
     </G>
   );
 }
