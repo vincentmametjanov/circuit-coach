@@ -111,10 +111,6 @@ export const RAILS: Rail[] = [
   { row: 10, sign: '−', side: 'bottom', y: 152 },
   { row: 11, sign: '+', side: 'bottom', y: 162 },
 ];
-/** The two rails the labs use by default: + above row a, − below row j. */
-export const RAIL_TOP = -1;
-export const RAIL_BOTTOM = 10;
-
 export const railAt = (row: number): Rail | undefined => RAILS.find((rail) => rail.row === row);
 export const isRail = (hole: Hole) => railAt(hole.row) !== undefined;
 const railName = (rail: Rail) => `the ${rail.side} ${rail.sign} rail`;
@@ -132,11 +128,6 @@ export const sameHole = (a: Hole, b: Hole) => a.row === b.row && a.col === b.col
 export const stripId = (hole: Hole) => {
   const rail = railAt(hole.row);
   return rail ? `rail:${rail.side}:${rail.sign}` : `strip:${hole.col}:${hole.row < 5 ? 'top' : 'bottom'}`;
-};
-
-export const stripName = (hole: Hole) => {
-  const rail = railAt(hole.row);
-  return rail ? railName(rail) : `column ${hole.col + 1} (rows ${hole.row < 5 ? 'a–e' : 'f–j'})`;
 };
 
 // ---------------------------------------------------------------------------

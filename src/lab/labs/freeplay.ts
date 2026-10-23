@@ -18,9 +18,6 @@ const SKETCH = `// free_play.ino: the open bench
 //
 // Try things here first. Mistakes are free.`;
 
-// Bin categories for the picker, in display order.
-export const FREEPLAY_CATEGORIES = ['Resistors', 'Lights', 'Buttons & knobs', 'Sensors', 'Motors & sound', 'Drivers & power'];
-
 export const FREEPLAY: LabDef = {
   id: 'play',
   title: 'Open bench: Free play',
