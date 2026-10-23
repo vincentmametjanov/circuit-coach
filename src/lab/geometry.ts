@@ -148,11 +148,11 @@ export const LANDSCAPE: CanvasLayout = {
 export const PORTRAIT: CanvasLayout = {
   id: 'portrait',
   width: 300,
-  height: 562,
-  bin: { x: 14, y: 8, width: 272, height: 88 },
-  binJumper: { x: 232, y: 44 },
-  breadboard: { x: 10, y: 108 },
-  board: { x: 26, y: 342 },
+  height: 570,
+  bin: { x: 14, y: 8, width: 272, height: 96 },
+  binJumper: { x: 232, y: 53 },
+  breadboard: { x: 10, y: 116 },
+  board: { x: 26, y: 350 },
 };
 
 export function fitCanvas(width: number, height: number | null, binRows: 1 | 2 | 3 = 1) {
@@ -187,7 +187,18 @@ export const RAIL_BOTTOM_Y = 142;
 
 
 /** Extra height each additional row of parts adds to the bin. */
-export const BIN_ROW_HEIGHT = 52;
+export const BIN_ROW_HEIGHT = 58;
+/** Bin slots per row, counting the jumper-wire bundle as the last slot. */
+export const BIN_SLOTS_PER_ROW = 5;
+/** Parts sit in the bin at this size and grow to full size when picked up. */
+export const BIN_PART_SCALE = 0.72;
+/** Bin content starts below its title line. */
+const BIN_FIRST_ROW = 45;
+
+/** How many rows a bin needs for `groups` part slots plus the jumper bundle. */
+export function binRowsForCount(groups: number): 1 | 2 | 3 {
+  return Math.min(3, Math.max(1, Math.ceil((groups + 1) / BIN_SLOTS_PER_ROW))) as 1 | 2 | 3;
+}
 
 /**
  * The layout with room for `rows` rows of parts in the bin. Extra rows make
@@ -198,15 +209,13 @@ export function withBinRows(base: CanvasLayout, rows: 1 | 2 | 3): CanvasLayout {
   if (rows === 1) return base;
   const extra = BIN_ROW_HEIGHT * (rows - 1);
   const bin = { ...base.bin, height: base.bin.height + extra };
-  const firstRowY = bin.y + 34;
   if (base.id === 'landscape') {
-    return { ...base, height: base.height + extra, bin, binJumper: { x: base.binJumper.x, y: firstRowY } };
+    return { ...base, height: base.height + extra, bin };
   }
   return {
     ...base,
     height: base.height + extra,
     bin,
-    binJumper: { x: base.binJumper.x, y: firstRowY },
     breadboard: { x: base.breadboard.x, y: base.breadboard.y + extra },
     board: { x: base.board.x, y: base.board.y + extra },
   };
@@ -216,26 +225,24 @@ export function withBinRows(base: CanvasLayout, rows: 1 | 2 | 3): CanvasLayout {
 export type BinSlotPoint = { at: Point; labelY: number };
 
 /**
- * Bin slots spread evenly between the bin's left edge and the jumper bundle,
- * in one, two, or three rows.
+ * A grid of bin slots, up to five to a row: one per part group, then the
+ * jumper-wire bundle last. Columns are the same width in every row so parts
+ * line up; a single row spreads out across the whole bin.
  */
-export function binSlotPoints(layout: CanvasLayout, count: number): BinSlotPoint[] {
-  const { bin, binJumper } = layout;
-  const rows = count > 10 ? 3 : count > 4 ? 2 : 1;
-  const perRow = Math.ceil(count / rows);
-  const left = bin.x + 42;
-  const right = binJumper.x - 46;
-  const rowY =
-    rows === 1
-      ? [bin.y + bin.height / 2 - 4]
-      : Array.from({ length: rows }, (_, r) => bin.y + 34 + r * BIN_ROW_HEIGHT);
-  return Array.from({ length: count }, (_, index) => {
+export function binSlotPoints(layout: CanvasLayout, count: number): { slots: BinSlotPoint[]; jumper: Point } {
+  const { bin } = layout;
+  const total = count + 1;
+  const rows = Math.min(3, Math.ceil(total / BIN_SLOTS_PER_ROW));
+  const perRow = Math.ceil(total / rows);
+  const inner = bin.width - 16;
+  const colWidth = inner / perRow;
+  const points = Array.from({ length: total }, (_, index) => {
     const row = Math.floor(index / perRow);
-    const inRow = row === rows - 1 ? count - perRow * (rows - 1) : perRow;
-    const i = index - row * perRow;
-    const x = inRow === 1 ? (left + right) / 2 : left + ((right - left) * i) / (perRow - 1);
-    return { at: { x, y: rowY[row] }, labelY: rowY[row] + 24 };
+    const col = index - row * perRow;
+    const y = bin.y + BIN_FIRST_ROW + row * BIN_ROW_HEIGHT;
+    return { at: { x: bin.x + 8 + colWidth * (col + 0.5), y }, labelY: y + 24 };
   });
+  return { slots: points.slice(0, count), jumper: points[count].at };
 }
 
 export function nearestHole(layout: CanvasLayout, p: Point, maxDistance = HOLE_PITCH * 0.85): Hole | null {

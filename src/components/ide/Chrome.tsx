@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts } from '../../theme';
 import { Icon, type IconName } from './Icons';
@@ -105,7 +105,8 @@ export type Tab = { id: string; label: string };
 
 export function TabStrip({ tabs, active, onSelect }: { tabs: Tab[]; active: string; onSelect: (id: string) => void }) {
   return (
-    <View style={styles.tabStrip}>
+    // Scrolls sideways when the tabs don't fit (phones, labs with long sketch names).
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabStrip}>
       {tabs.map((tab) => {
         const selected = tab.id === active;
         return (
@@ -120,7 +121,7 @@ export function TabStrip({ tabs, active, onSelect }: { tabs: Tab[]; active: stri
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -261,6 +262,10 @@ const styles = StyleSheet.create({
     color: colors.tealPale,
     fontFamily: fonts.ui,
     fontSize: 13,
+  },
+  tabScroll: {
+    flexGrow: 0,
+    backgroundColor: colors.tabStrip,
   },
   tabStrip: {
     flexDirection: 'row',

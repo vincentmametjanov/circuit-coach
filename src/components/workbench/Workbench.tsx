@@ -14,6 +14,7 @@ import {
   PIN_BY_ID,
   RAIL_BOTTOM,
   RAIL_TOP,
+  BIN_PART_SCALE,
   binSlotPoints,
   headerRegions,
   holeKey,
@@ -171,9 +172,13 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
   );
   // Identical parts share one bin slot; only the next one still in the bin is shown there.
   const groups = useMemo(() => binGroups(binParts), [binParts]);
-  const binSlots = useMemo(() => {
+  const { binSlots, sceneLayout } = useMemo(() => {
     const points = binSlotPoints(layout, groups.length);
-    return groups.map((g, i) => ({ key: g.key, label: g.label, ids: g.ids, ...points[i] }));
+    return {
+      binSlots: groups.map((g, i) => ({ key: g.key, label: g.label, ids: g.ids, ...points.slots[i] })),
+      // The jumper bundle takes the bin's last slot.
+      sceneLayout: { ...layout, binJumper: points.jumper },
+    };
   }, [layout, groups]);
   const slots: Record<string, Point> = {};
   for (const slot of binSlots) for (const id of slot.ids) slots[id] = slot.at;
@@ -403,7 +408,7 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
           </RadialGradient>
         </Defs>
 
-        <StaticScene layout={layout} slots={binSlots} binTitle={categories.length > 0 && category ? category : undefined} />
+        <StaticScene layout={sceneLayout} slots={binSlots} binTitle={categories.length > 0 && category ? category : undefined} />
 
         {/* Board status LEDs */}
         <BoardLight at={boardLed('on')} color="#3BE36B" />
@@ -425,9 +430,16 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
 
         {parts
           .filter((p) => !p.dragging)
-          .map(({ spec, center }) => (
-            <PartView key={spec.id} spec={spec} at={center} state={state} glow={ledGlow[spec.id] ?? 'off'} level={ledLevels?.[spec.id]} />
-          ))}
+          .map(({ spec, center }) =>
+            state.parts[spec.id] ? (
+              <PartView key={spec.id} spec={spec} at={center} state={state} glow={ledGlow[spec.id] ?? 'off'} level={ledLevels?.[spec.id]} />
+            ) : (
+              // Waiting in the bin: drawn smaller so a full bin stays readable.
+              <G key={spec.id} transform={`translate(${center.x} ${center.y}) scale(${BIN_PART_SCALE}) translate(${-center.x} ${-center.y})`}>
+                <PartView spec={spec} at={center} state={state} glow="off" />
+              </G>
+            ),
+          )}
 
         {wires
           .filter((w) => w.moving)
@@ -473,12 +485,12 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
       <DragHandle
         label="Jumper wires: drag one to a pin or hole, tap to learn what it is"
         style={frame(
-          layout.binJumper.x + BIN_JUMPER_BOX.left,
-          layout.binJumper.y + BIN_JUMPER_BOX.top,
+          sceneLayout.binJumper.x + BIN_JUMPER_BOX.left,
+          sceneLayout.binJumper.y + BIN_JUMPER_BOX.top,
           BIN_JUMPER_BOX.right - BIN_JUMPER_BOX.left,
           BIN_JUMPER_BOX.bottom - BIN_JUMPER_BOX.top,
         )}
-        onStart={() => startDrag({ kind: 'binWire', origin: layout.binJumper, at: layout.binJumper })}
+        onStart={() => startDrag({ kind: 'binWire', origin: sceneLayout.binJumper, at: sceneLayout.binJumper })}
         onMove={moveDrag}
         onEnd={finish}
       />
@@ -521,7 +533,10 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
           <DragHandle
             key={spec.id}
             label={label}
-            style={frame(home.x + box.left, home.y + box.top, box.right - box.left, box.bottom - box.top)}
+            style={(() => {
+              const k = placed ? 1 : BIN_PART_SCALE;
+              return frame(home.x + box.left * k, home.y + box.top * k, (box.right - box.left) * k, (box.bottom - box.top) * k);
+            })()}
             onStart={() => {
               if (pressable) {
                 dispatch({ type: 'pressPart', part: spec.id, pressed: true });
@@ -591,7 +606,7 @@ export function Workbench({ layout, scale, lab, state, ledGlow, ledLevels, dispa
 
       {/* Bin category picker, above everything else in the bin corner. */}
       {categories.length > 1 && category ? (
-        <View style={[styles.picker, frame(layout.bin.x + 6, layout.bin.y + 4, 128, 24)]}>
+        <View style={[styles.picker, frame(layout.bin.x + 6, layout.bin.y + 4, 128, 18)]}>
           {pickerOpen ? (
             <Pressable
               accessibilityLabel="Close the category picker"

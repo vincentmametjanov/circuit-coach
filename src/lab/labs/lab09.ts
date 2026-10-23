@@ -128,6 +128,7 @@ export const LAB09: LabDef = {
 
   verdict: {
     mistakes: ['short', 'motorOnPin', 'diodeBackwards', 'alwaysPressed'],
+    whenChecked: ['diodeBackwards'],
     order: [
       'short',
       'motorOnPin',

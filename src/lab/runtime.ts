@@ -311,7 +311,8 @@ export function runtimeReducer(lab: LabDef, state: RuntimeState, action: Runtime
   // burn-out) already reported the same action's consequence.
   const after = judge(lab, next);
   const burntChanged = next.burnt.length !== state.burnt.length;
-  if (!burntChanged && isMistake(lab.verdict, after) && (after.code !== before.code || after.title !== before.title)) {
+  const deferred = lab.verdict.whenChecked?.includes(after.code) ?? false;
+  if (!burntChanged && !deferred && isMistake(lab.verdict, after) && (after.code !== before.code || after.title !== before.title)) {
     next = appendLog(next, ...problem(after));
   }
   return next;

@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { ComponentId } from '../lab/components';
-import { fitCanvas } from '../lab/geometry';
+import { binRowsForCount, fitCanvas } from '../lab/geometry';
 import type { LabDef } from '../lab/lab';
 import { binGroups, binRowsFor, type PartSpec } from '../lab/parts';
 import {
@@ -42,7 +42,7 @@ function binRowsForLab(lab: LabDef): 1 | 2 | 3 {
   const perCategory = new Map<string, PartSpec[]>();
   for (const spec of categorized) perCategory.set(spec.category!, [...(perCategory.get(spec.category!) ?? []), spec]);
   const maxGroups = Math.max(...[...perCategory.values()].map((specs) => binGroups(specs).length));
-  return maxGroups > 4 ? 2 : 1;
+  return binRowsForCount(maxGroups);
 }
 
 /** The lab screen drives any lab defined in src/lab/labs/ through the runtime. */

@@ -122,6 +122,7 @@ export const LAB06: LabDef = {
 
   verdict: {
     mistakes: ['short', 'noFixedResistor', 'ledLoop'],
+    whenChecked: ['noFixedResistor'],
     order: ['short', 'burnt', 'pass', 'noFixedResistor', 'ledLoop', 'sensorOpen', 'missingParts', 'open'],
     check(code, c) {
       const say = ledLoopMessages(LAB06, FLASH);

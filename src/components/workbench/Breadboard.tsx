@@ -82,6 +82,21 @@ export const Breadboard = memo(function Breadboard({ origin }: { origin: Point }
 });
 
 /** Tray that holds parts that are not on the breadboard. */
+/**
+ * Splits a bin label onto two short lines so neighbouring slots never collide:
+ * "10 kΩ resistor (button)" → name, then its role; a long name breaks at the
+ * space nearest its middle.
+ */
+function labelLines(label: string): [string, string | null] {
+  const paren = label.indexOf(' (');
+  if (paren > 0) return [label.slice(0, paren), label.slice(paren + 1)];
+  if (label.length <= 14) return [label, null];
+  const spaces = [...label].map((ch, i) => (ch === ' ' ? i : -1)).filter((i) => i > 0);
+  if (spaces.length === 0) return [label, null];
+  const cut = spaces.reduce((best, i) => (Math.abs(i - label.length / 2) < Math.abs(best - label.length / 2) ? i : best));
+  return [label.slice(0, cut), label.slice(cut + 1)];
+}
+
 export const PartsBin = memo(function PartsBin({
   layout,
   slots,
@@ -108,15 +123,29 @@ export const PartsBin = memo(function PartsBin({
         strokeWidth={1}
         strokeDasharray="4 3"
       />
-      <Text x={bin.x + 10} y={bin.y + 13} fontSize={6.5} fontWeight="700" fill="#5B7173" letterSpacing={1.2} fontFamily={fonts.svg}>
-        {title ? `PARTS BIN · ${title.toUpperCase()}` : 'PARTS BIN'}
-      </Text>
-      {slots.map((slot) => (
-        <Text key={slot.key} x={slot.at.x} y={slot.labelY} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
-          {slot.label}
+      {/* A filtered bin (free play) shows its category picker here instead. */}
+      {title ? null : (
+        <Text x={bin.x + 10} y={bin.y + 14} fontSize={7} fontWeight="700" fill="#41575A" fontFamily={fonts.svg}>
+          Parts bin
         </Text>
-      ))}
-      <Text x={binJumper.x} y={binJumper.y + 24} fontSize={6} fill="#5B7173" textAnchor="middle" fontFamily={fonts.svg}>
+      )}
+      {slots.map((slot) => {
+        // "10 kΩ resistor (button)" → name on one line, its role underneath.
+        const [name, role] = labelLines(slot.label);
+        return (
+          <G key={slot.key}>
+            <Text x={slot.at.x} y={slot.labelY} fontSize={6} fill="#41575A" textAnchor="middle" fontFamily={fonts.svg}>
+              {name}
+            </Text>
+            {role ? (
+              <Text x={slot.at.x} y={slot.labelY + 7} fontSize={5.4} fill="#7F8C8D" textAnchor="middle" fontFamily={fonts.svg}>
+                {role}
+              </Text>
+            ) : null}
+          </G>
+        );
+      })}
+      <Text x={binJumper.x} y={binJumper.y + 24} fontSize={6} fill="#41575A" textAnchor="middle" fontFamily={fonts.svg}>
         Jumper wires
       </Text>
       <Text x={bin.x + 10} y={bin.y + bin.height - 7} fontSize={5.6} fill="#7F8C8D" fontFamily={fonts.svg}>

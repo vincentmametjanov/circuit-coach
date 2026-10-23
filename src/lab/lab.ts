@@ -15,6 +15,12 @@ export type CircuitQuery = Circuit;
 export type VerdictSpec = {
   /** Verdicts that mean "wired wrong" and are flagged the moment they appear. */
   mistakes: string[];
+  /**
+   * Mistakes that look like an unfinished circuit halfway through a build (a
+   * part not placed yet, a part not flipped yet). They are reported on Verify
+   * and Upload, never while the student is still building.
+   */
+  whenChecked?: string[];
   /** In priority order: the first spec whose check fires wins. */
   order: string[];
   check: (code: string, c: CircuitQuery, lab: LabDef) => Message | null;

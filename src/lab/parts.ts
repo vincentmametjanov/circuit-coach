@@ -3,7 +3,7 @@
 // instance id, so a lab can use three LEDs); the workbench draws each instance
 // and the checker reads its legs.
 
-import type { Hole } from './geometry';
+import { binRowsForCount, type Hole } from './geometry';
 
 export type PartDefId =
   | 'resistor'
@@ -267,6 +267,5 @@ export function binGroups(parts: PartSpec[]): BinGroup[] {
 
 /** Labs with more than four slots get extra rows in the bin (free play uses three). */
 export const binRowsFor = (parts: PartSpec[]): 1 | 2 | 3 => {
-  const slots = binGroups(parts).length;
-  return slots > 10 ? 3 : slots > 4 ? 2 : 1;
+  return binRowsForCount(binGroups(parts).length);
 };
