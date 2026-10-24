@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers config: serves the static web export in dist/.
+  // Unknown paths fall back to index.html so deep links like /labs/lab03 work.
+  "name": "circuit-coach",
+  "compatibility_date": "2026-10-24",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
