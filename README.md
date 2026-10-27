@@ -4,8 +4,6 @@ Learn Arduino and electronics without buying a kit. Wire real parts on a simulat
 
 Twelve labs go from blinking one LED to a small automated sorting line. Built by Vincent Mametjanov.
 
-The idea for the app was developed in early summer of 2026, with initial design ideas that went through process of changes after interviews with teachers and students about what makes electronics hard to start. Building of the app began in August 2026, after infrastructure layout was established.
-
 ## Run it
 
 Runs in a browser, on iPhone and iPad, and on Android phones and tablets.
